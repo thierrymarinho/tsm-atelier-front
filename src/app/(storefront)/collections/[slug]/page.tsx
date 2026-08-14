@@ -1,26 +1,11 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { CatalogGrid } from "@/components/domain/CatalogGrid";
-import { TargetAudience, CollectionResponseDTO } from "@/lib/types/api";
+import { CatalogGrid, CatalogGridSkeleton } from "@/components/domain/CatalogGrid";
+import { getCollectionBySlug } from "@/lib/api/server";
+import { TargetAudience } from "@/lib/types/api";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
-}
-
-async function getCollectionBySlug(slug: string): Promise<CollectionResponseDTO | null> {
-  try {
-    // In a server component, we fetch directly from the backend API.
-    // Ensure this URL matches your internal Docker network or localhost setup.
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-    const res = await fetch(`${apiUrl}/api/v1/catalog/collections/slug/${slug}`, {
-      next: { revalidate: 60 } // Optional ISR cache
-    });
-
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (error) {
-    console.error(`Error fetching collection ${slug}:`, error);
-    return null;
-  }
 }
 
 export default async function CollectionPage({ params }: PageProps) {
@@ -31,7 +16,6 @@ export default async function CollectionPage({ params }: PageProps) {
   let isNovidades = false;
   let collectionId: number | undefined;
 
-  // Handle hardcoded "Novidades" dynamic routes
   if (slug === "novidades-mulheres") {
     title = "Novidades para Ela";
     targetAudience = "WOMEN";
@@ -41,10 +25,9 @@ export default async function CollectionPage({ params }: PageProps) {
     targetAudience = "MEN";
     isNovidades = true;
   } else {
-    // Standard Collection Route
     const collectionData = await getCollectionBySlug(slug);
-    
-    if (!collectionData) {
+
+    if (!collectionData || !collectionData.active) {
       notFound();
     }
 
@@ -54,9 +37,9 @@ export default async function CollectionPage({ params }: PageProps) {
   }
 
   return (
-    <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-12 md:py-20 mt-16 sm:mt-20">
+    <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 pt-6 md:pt-10 pb-12 md:pb-20 mt-16 sm:mt-20">
       <div className="mb-10 md:mb-16 text-center">
-        <h1 className="font-serif text-3xl md:text-5xl tracking-wide uppercase text-foreground mb-4">
+        <h1 className="font-serif text-lg md:text-2xl tracking-wide uppercase text-foreground mb-4">
           {title}
         </h1>
         {isNovidades && (
@@ -66,12 +49,14 @@ export default async function CollectionPage({ params }: PageProps) {
         )}
       </div>
 
-      <CatalogGrid 
-        targetAudience={targetAudience}
-        collectionId={collectionId}
-        size={20} 
-        sort="createdAt,desc" 
-      />
+      <Suspense fallback={<CatalogGridSkeleton />}>
+        <CatalogGrid
+          targetAudience={targetAudience}
+          collectionId={collectionId}
+          size={20}
+          sort="createdAt,desc"
+        />
+      </Suspense>
     </div>
   );
 }
