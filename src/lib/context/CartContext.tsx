@@ -1,33 +1,29 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from "react";
 import { useAuth } from "@/lib/context/AuthContext";
-import { apiClient } from "@/lib/api/client";
+import { useAuthPanel } from "@/lib/context/AuthPanelContext";
+import { apiClient, onSessionExpired } from "@/lib/api/client";
 import { useToast } from "@/lib/context/ToastContext";
-import { CartResponseDTO, CartItemResponseDTO } from "@/lib/types/api";
+import { CartResponseDTO } from "@/lib/types/api";
+import {
+  CART_STORAGE_KEY,
+  readStoredCart,
+  type CartItem,
+} from "@/lib/cart-storage";
 
-export interface CartItem {
-  id: string | number; // string for local (productId-colorHex-size), number for API cart item id
-  productId: number;
-  skuId: number;
-  name: string;
-  slug: string;
-  colorName: string;
-  colorHex: string;
-  size: string;
-  price: number;
-  quantity: number;
-  imageUrl: string;
-  stockQuantity: number;
-  available: boolean;
-}
+export type { CartItem };
+
+const EXPIRED_CART_HOLD_MS = 2 * 60 * 1000;
 
 interface CartContextType {
   items: CartItem[];
+  isLoaded: boolean;
+  isLocked: boolean;
   addItem: (item: Omit<CartItem, "id" | "quantity">) => Promise<void>;
   removeItem: (id: string | number) => Promise<void>;
   updateQuantity: (id: string | number, quantity: number) => Promise<void>;
-  clearCart: () => void;
+  clearCart: () => Promise<void>;
   isCartOpen: boolean;
   setIsCartOpen: (isOpen: boolean) => void;
   cartTotal: number;
@@ -39,24 +35,26 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
-  
+
   const [items, setItems] = useState<CartItem[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // Load cart data based on auth status
+  const [loadedForAuth, setLoadedForAuth] = useState<boolean | null>(null);
+  const isLoaded = loadedForAuth === isAuthenticated;
+
+  const isLocked = !isAuthenticated && !isLoaded;
+
   const fetchApiCart = useCallback(async () => {
     try {
       const response = await apiClient.get<CartResponseDTO>("/v1/cart");
-      // Map API DTO to internal CartItem structure
       const apiItems: CartItem[] = response.data.items.map((i) => ({
-        id: i.id, // Number ID from API
+        id: i.id,
         productId: i.productId,
         skuId: i.skuId,
         name: i.productName,
         slug: i.productSlug,
         colorName: i.colorName,
-        colorHex: "", // API does not return colorHex
+        colorHex: "",
         size: i.size,
         price: i.unitPrice,
         quantity: i.quantity,
@@ -70,27 +68,63 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Initial load
+  const sessionExpiredRef = useRef(false);
+  const releaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearReleaseTimer = useCallback(() => {
+    if (releaseTimerRef.current !== null) {
+      clearTimeout(releaseTimerRef.current);
+      releaseTimerRef.current = null;
+    }
+  }, []);
+
+  const releaseHeldCart = useCallback(() => {
+    clearReleaseTimer();
+    if (!sessionExpiredRef.current) return;
+    sessionExpiredRef.current = false;
+    setItems(readStoredCart());
+    setLoadedForAuth(false);
+  }, [clearReleaseTimer]);
+
+  useEffect(() => {
+    const unsubscribe = onSessionExpired(() => {
+      sessionExpiredRef.current = true;
+      clearReleaseTimer();
+      releaseTimerRef.current = setTimeout(releaseHeldCart, EXPIRED_CART_HOLD_MS);
+    });
+    return () => {
+      unsubscribe();
+      clearReleaseTimer();
+    };
+  }, [releaseHeldCart, clearReleaseTimer]);
+
+  const { isAuthPanelOpen } = useAuthPanel();
+  const wasAuthPanelOpenRef = useRef(false);
+
+  useEffect(() => {
+    const justClosed = wasAuthPanelOpenRef.current && !isAuthPanelOpen;
+    wasAuthPanelOpenRef.current = isAuthPanelOpen;
+
+    if (justClosed && !isAuthenticated) {
+      releaseHeldCart();
+    }
+  }, [isAuthPanelOpen, isAuthenticated, releaseHeldCart]);
+
   useEffect(() => {
     if (isAuthenticated) {
-      fetchApiCart().finally(() => setIsLoaded(true));
+      sessionExpiredRef.current = false;
+      clearReleaseTimer();
+      fetchApiCart().finally(() => setLoadedForAuth(true));
+    } else if (sessionExpiredRef.current) {
     } else {
-      try {
-        const storedCart = localStorage.getItem("tsm_cart");
-        if (storedCart) {
-          setItems(JSON.parse(storedCart));
-        }
-      } catch (error) {
-        console.error("Failed to load cart from local storage", error);
-      }
-      setIsLoaded(true);
+      setItems(readStoredCart());
+      setLoadedForAuth(false);
     }
-  }, [isAuthenticated, fetchApiCart]);
+  }, [isAuthenticated, fetchApiCart, clearReleaseTimer]);
 
-  // Save to local storage ONLY if not authenticated
   useEffect(() => {
     if (isLoaded && !isAuthenticated) {
-      localStorage.setItem("tsm_cart", JSON.stringify(items));
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
     }
   }, [items, isLoaded, isAuthenticated]);
 
@@ -108,32 +142,31 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const addItem = async (item: Omit<CartItem, "id" | "quantity">) => {
+    if (isLocked) releaseHeldCart();
+
     if (isAuthenticated) {
       try {
         await apiClient.post("/v1/cart/items", { skuId: item.skuId, quantity: 1 });
-        await fetchApiCart(); // Refresh from server
+        await fetchApiCart();
         setIsCartOpen(true);
       } catch (error) {
         handleApiError(error);
       }
     } else {
-      // Local Storage approach
       const id = `${item.productId}-${item.colorHex}-${item.size}`;
       setItems((prev) => {
         const existingItem = prev.find((i) => i.id === id);
         if (existingItem) {
-          // If it exists, just increase quantity
           const newQty = existingItem.quantity + 1;
           const maxAllowed = Math.min(10, existingItem.stockQuantity);
           if (newQty > maxAllowed) {
             toast(`Limite máximo atingido. Só temos ${existingItem.stockQuantity} unidades disponíveis.`, "error");
-            return prev; // don't increase
+            return prev;
           }
-          return prev.map((i) => 
+          return prev.map((i) =>
             i.id === id ? { ...i, quantity: newQty } : i
           );
         } else {
-          // Add new item with quantity 1
           return [...prev, { ...item, id, quantity: 1 }];
         }
       });
@@ -142,6 +175,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const removeItem = async (id: string | number) => {
+    if (isLocked) return;
     if (isAuthenticated) {
       try {
         await apiClient.delete(`/v1/cart/items/${id}`);
@@ -155,6 +189,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const updateQuantity = async (id: string | number, quantity: number) => {
+    if (isLocked) return;
+
     if (quantity <= 0) {
       await removeItem(id);
       return;
@@ -182,9 +218,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const clearCart = () => {
+  const clearCart = useCallback(async () => {
     setItems([]);
-  };
+
+    if (isAuthenticated) {
+      try {
+        await apiClient.delete("/v1/cart");
+      } catch (error) {
+        console.error("Failed to clear server cart", error);
+      }
+    } else {
+      localStorage.removeItem(CART_STORAGE_KEY);
+    }
+  }, [isAuthenticated]);
 
   const cartTotal = items.reduce((total, item) => total + item.price * item.quantity, 0);
   const cartCount = items.reduce((count, item) => count + item.quantity, 0);
@@ -193,6 +239,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     <CartContext.Provider
       value={{
         items,
+        isLoaded,
+        isLocked,
         addItem,
         removeItem,
         updateQuantity,
