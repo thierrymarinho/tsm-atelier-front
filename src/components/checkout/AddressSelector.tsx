@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api/client";
 import { AddressResponseDTO, AddressRequestDTO, BRAZILIAN_STATES } from "@/lib/types/api";
 import { Loader2, MapPin, Plus, Check } from "lucide-react";
 import { formatApiError } from "@/lib/utils/error";
+import { PostalCodeInput } from "@/components/ui/PostalCodeInput";
+import { isCompletePostalCode, POSTAL_CODE_HINT } from "@/lib/utils/postal-code";
 
 interface AddressSelectorProps {
   onAddressSelected: (addressId: number) => void;
@@ -15,11 +17,20 @@ export function AddressSelector({ onAddressSelected }: AddressSelectorProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  // Selected address state (defaults to the isDefault one)
+
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
 
-  // Form State
+  const selectedAddressIdRef = useRef<number | null>(null);
+
+  const selectAddress = useCallback(
+    (id: number) => {
+      selectedAddressIdRef.current = id;
+      setSelectedAddressId(id);
+      onAddressSelected(id);
+    },
+    [onAddressSelected],
+  );
+
   const [formData, setFormData] = useState<AddressRequestDTO>({
     street: "",
     number: "",
@@ -38,12 +49,10 @@ export function AddressSelector({ onAddressSelected }: AddressSelectorProps) {
     try {
       const { data } = await apiClient.get<AddressResponseDTO[]>("/v1/addresses");
       setAddresses(data);
-      
-      // Select default address initially
-      const defaultAddr = data.find(a => a.isDefault);
-      if (defaultAddr && !selectedAddressId) {
-        setSelectedAddressId(defaultAddr.id);
-        onAddressSelected(defaultAddr.id);
+
+      const defaultAddr = data.find((a) => a.isDefault);
+      if (defaultAddr && selectedAddressIdRef.current === null) {
+        selectAddress(defaultAddr.id);
       }
     } catch (error) {
       console.error("Failed to fetch addresses:", error);
@@ -59,17 +68,22 @@ export function AddressSelector({ onAddressSelected }: AddressSelectorProps) {
 
   const handleCreateAddress = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setFormError("");
+
+    if (!isCompletePostalCode(formData.postalCode)) {
+      setFormError(POSTAL_CODE_HINT);
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       const { data } = await apiClient.post<AddressResponseDTO>("/v1/addresses", formData);
-      await fetchAddresses(); 
+      await fetchAddresses();
       setIsFormOpen(false);
       setIsModalOpen(false);
       handleSelectAddress(data.id);
-      
-      // Reset form
+
       setFormData({
         street: "", number: "", complement: "", neighborhood: "",
         city: "", state: "SP", postalCode: "", isDefault: false,
@@ -82,8 +96,7 @@ export function AddressSelector({ onAddressSelected }: AddressSelectorProps) {
   };
 
   const handleSelectAddress = (id: number) => {
-    setSelectedAddressId(id);
-    onAddressSelected(id);
+    selectAddress(id);
     setIsModalOpen(false);
   };
 
@@ -97,7 +110,6 @@ export function AddressSelector({ onAddressSelected }: AddressSelectorProps) {
     );
   }
 
-  // If no addresses or form is explicitly open in main view
   if (addresses.length === 0 || (isFormOpen && !isModalOpen)) {
     return (
       <div className="border border-muted p-6 bg-background">
@@ -110,12 +122,11 @@ export function AddressSelector({ onAddressSelected }: AddressSelectorProps) {
 
         <form onSubmit={handleCreateAddress} className="flex flex-col gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <input
-              type="text"
-              placeholder="CEP"
+            <PostalCodeInput
+              placeholder="CEP (00000-000)"
               required
               value={formData.postalCode}
-              onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+              onChange={(postalCode) => setFormData({ ...formData, postalCode })}
               className="w-full bg-transparent border-b border-muted py-2 text-sm focus:outline-none focus:border-foreground transition-colors"
             />
             <input
@@ -213,7 +224,6 @@ export function AddressSelector({ onAddressSelected }: AddressSelectorProps) {
     );
   }
 
-  // Main View: Show selected address card
   return (
     <>
       <div className="border border-muted p-6 bg-background">
@@ -249,7 +259,6 @@ export function AddressSelector({ onAddressSelected }: AddressSelectorProps) {
         )}
       </div>
 
-      {/* Modal for Address Selection */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-background w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -262,9 +271,8 @@ export function AddressSelector({ onAddressSelected }: AddressSelectorProps) {
 
             {isFormOpen ? (
                <form onSubmit={handleCreateAddress} className="flex flex-col gap-4">
-                 {/* Same form as above, just inside modal */}
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <input type="text" placeholder="CEP" required value={formData.postalCode} onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })} className="w-full bg-transparent border-b border-muted py-2 text-sm focus:outline-none focus:border-foreground transition-colors" />
+                    <PostalCodeInput placeholder="CEP (00000-000)" required value={formData.postalCode} onChange={(postalCode) => setFormData({ ...formData, postalCode })} className="w-full bg-transparent border-b border-muted py-2 text-sm focus:outline-none focus:border-foreground transition-colors" />
                     <input type="text" placeholder="Rua / Avenida" required value={formData.street} onChange={(e) => setFormData({ ...formData, street: e.target.value })} className="w-full bg-transparent border-b border-muted py-2 text-sm focus:outline-none focus:border-foreground transition-colors" />
                     <input type="text" placeholder="Número" required value={formData.number} onChange={(e) => setFormData({ ...formData, number: e.target.value })} className="w-full bg-transparent border-b border-muted py-2 text-sm focus:outline-none focus:border-foreground transition-colors" />
                     <input type="text" placeholder="Complemento" value={formData.complement} onChange={(e) => setFormData({ ...formData, complement: e.target.value })} className="w-full bg-transparent border-b border-muted py-2 text-sm focus:outline-none focus:border-foreground transition-colors" />
@@ -297,7 +305,7 @@ export function AddressSelector({ onAddressSelected }: AddressSelectorProps) {
             ) : (
               <div className="flex flex-col gap-4">
                 {addresses.map(addr => (
-                  <div 
+                  <div
                     key={addr.id}
                     onClick={() => handleSelectAddress(addr.id)}
                     className={`p-4 border cursor-pointer transition-colors flex items-start justify-between ${selectedAddressId === addr.id ? 'border-foreground bg-muted/10' : 'border-muted hover:border-foreground/50'}`}
@@ -313,7 +321,7 @@ export function AddressSelector({ onAddressSelected }: AddressSelectorProps) {
                   </div>
                 ))}
 
-                <button 
+                <button
                   onClick={() => setIsFormOpen(true)}
                   className="mt-2 w-full py-4 border border-dashed border-muted hover:border-foreground transition-colors flex items-center justify-center gap-2 text-sm font-medium uppercase tracking-widest text-muted-foreground hover:text-foreground"
                 >
