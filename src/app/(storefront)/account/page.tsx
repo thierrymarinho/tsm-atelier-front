@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { LogOut, User, Package, MapPin, Mail } from "lucide-react";
+import Link from "next/link";
+import { LogOut, User, Package, MapPin, Mail, LayoutDashboard } from "lucide-react";
 
+import { translateRole } from "@/lib/utils/translations";
 import { AddressManager } from "@/components/account/AddressManager";
 import { OrdersList } from "@/components/account/OrdersList";
 
@@ -26,8 +28,7 @@ export default function AccountPage() {
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 pt-24 pb-24 min-h-screen">
-      
-      {/* Page Header */}
+
       <div className="mb-12 border-b border-muted pb-8">
         <h1 className="font-serif text-3xl tracking-widest uppercase text-foreground">
           Minha Conta
@@ -38,15 +39,14 @@ export default function AccountPage() {
       </div>
 
       <div className="flex flex-col lg:flex-row gap-12 lg:gap-20">
-        
-        {/* Sidebar Navigation */}
+
         <div className="w-full lg:w-64 flex-shrink-0">
-          <nav className="flex flex-row lg:flex-col gap-2 lg:gap-4 overflow-x-auto pb-4 lg:pb-0 scrollbar-hide">
+          <nav className="flex flex-row lg:flex-col gap-2 lg:gap-4 overflow-x-auto pb-4 lg:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button
               onClick={() => setActiveTab("overview")}
               className={`flex items-center gap-3 px-4 py-3 text-sm font-medium tracking-wider uppercase whitespace-nowrap transition-colors ${
-                activeTab === "overview" 
-                  ? "bg-foreground text-background" 
+                activeTab === "overview"
+                  ? "bg-foreground text-background"
                   : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
               }`}
             >
@@ -56,8 +56,8 @@ export default function AccountPage() {
             <button
               onClick={() => setActiveTab("orders")}
               className={`flex items-center gap-3 px-4 py-3 text-sm font-medium tracking-wider uppercase whitespace-nowrap transition-colors ${
-                activeTab === "orders" 
-                  ? "bg-foreground text-background" 
+                activeTab === "orders"
+                  ? "bg-foreground text-background"
                   : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
               }`}
             >
@@ -67,8 +67,8 @@ export default function AccountPage() {
             <button
               onClick={() => setActiveTab("addresses")}
               className={`flex items-center gap-3 px-4 py-3 text-sm font-medium tracking-wider uppercase whitespace-nowrap transition-colors ${
-                activeTab === "addresses" 
-                  ? "bg-foreground text-background" 
+                activeTab === "addresses"
+                  ? "bg-foreground text-background"
                   : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
               }`}
             >
@@ -85,23 +85,34 @@ export default function AccountPage() {
           </nav>
         </div>
 
-        {/* Main Content Area */}
         <div className="flex-1 min-h-[500px]">
-          
-          {/* OVERVIEW TAB */}
+
           {activeTab === "overview" && (
-            <div className="animate-in fade-in duration-500">
-              <h2 className="text-sm font-semibold tracking-widest uppercase mb-8 border-b border-muted pb-4">
-                Dados Pessoais
-              </h2>
-              
+            <div className="animate-fade-in-fast">
+
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-8 border-b border-muted pb-4">
+                <h2 className="text-sm font-semibold tracking-widest uppercase">
+                  Dados Pessoais
+                </h2>
+
+                {user.role === "ADMIN" && (
+                  <Link
+                    href="/admin"
+                    className="inline-flex items-center gap-2 border border-muted px-4 py-2 text-xs font-medium tracking-widest uppercase text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+                  >
+                    <LayoutDashboard className="w-4 h-4" strokeWidth={1.5} />
+                    Painel administrativo
+                  </Link>
+                )}
+              </div>
+
               <div className="flex items-center gap-6 mb-10">
                 <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center text-xl font-semibold tracking-wide text-foreground">
                   {initials.toUpperCase()}
                 </div>
                 <div>
                   <p className="font-medium text-lg">{user.name || `${user.firstName} ${user.lastName}`}</p>
-                  <p className="text-muted-foreground text-sm mt-1">{user.role}</p>
+                  <p className="text-muted-foreground text-sm mt-1">{translateRole(user.role)}</p>
                 </div>
               </div>
 
@@ -125,9 +136,8 @@ export default function AccountPage() {
             </div>
           )}
 
-          {/* ORDERS TAB */}
           {activeTab === "orders" && (
-            <div className="animate-in fade-in duration-500">
+            <div className="animate-fade-in-fast">
               <h2 className="text-sm font-semibold tracking-widest uppercase mb-8 border-b border-muted pb-4">
                 Meus Pedidos
               </h2>
@@ -135,9 +145,8 @@ export default function AccountPage() {
             </div>
           )}
 
-          {/* ADDRESSES TAB */}
           {activeTab === "addresses" && (
-            <div className="animate-in fade-in duration-500">
+            <div className="animate-fade-in-fast">
               <h2 className="text-sm font-semibold tracking-widest uppercase mb-8 border-b border-muted pb-4">
                 Meus Endereços
               </h2>

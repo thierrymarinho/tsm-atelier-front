@@ -1,47 +1,39 @@
-"use client";
-
-import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { apiClient } from "@/lib/api/client";
-import { PaginatedResponse, ProductSummaryDTO, TargetAudience } from "@/lib/types/api";
+import { getProducts } from "@/lib/api/server";
+import { TargetAudience } from "@/lib/types/api";
 import { ProductCard } from "./ProductCard";
 
 interface CatalogGridProps {
   targetAudience?: TargetAudience;
   category?: string;
   collectionId?: number;
+  onSale?: boolean;
   sort?: string;
   size?: number;
+  emptyMessage?: string;
 }
 
-export function CatalogGrid({ targetAudience, category, collectionId, sort = "createdAt,desc", size = 20 }: CatalogGridProps) {
-  
-  const { data: pageData, isLoading, isError } = useQuery({
-    queryKey: ['products', { targetAudience, category, collectionId, sort, size }],
-    queryFn: async () => {
-      const response = await apiClient.get<PaginatedResponse<ProductSummaryDTO>>('/v1/catalog/products', {
-        params: {
-          targetAudience,
-          category,
-          collectionId,
-          sort,
-          size
-        }
-      });
-      return response.data;
-    },
-  });
+export function CatalogGridSkeleton() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[400px] text-muted-foreground">
+      <Loader2 className="w-8 h-8 animate-spin mb-4" />
+      <p className="tracking-widest uppercase text-sm">Carregando produtos...</p>
+    </div>
+  );
+}
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-muted-foreground">
-        <Loader2 className="w-8 h-8 animate-spin mb-4" />
-        <p className="tracking-widest uppercase text-sm">Carregando produtos...</p>
-      </div>
-    );
-  }
+export async function CatalogGrid({
+  targetAudience,
+  category,
+  collectionId,
+  onSale,
+  sort = "createdAt,desc",
+  size = 20,
+  emptyMessage = "Nenhum produto ainda foi adicionado para essa coleção.",
+}: CatalogGridProps) {
+  const products = await getProducts({ targetAudience, category, collectionId, onSale, sort, size });
 
-  if (isError || !pageData) {
+  if (products === null) {
     return (
       <div className="flex items-center justify-center min-h-[400px] text-muted-foreground">
         <p className="tracking-widest uppercase text-sm">Falha ao carregar catálogo de produtos.</p>
@@ -49,12 +41,10 @@ export function CatalogGrid({ targetAudience, category, collectionId, sort = "cr
     );
   }
 
-  const products = pageData.content || [];
-
   if (products.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[400px] text-muted-foreground">
-        <p className="tracking-widest uppercase text-sm">Nenhum produto ainda foi adicionado para essa coleção.</p>
+        <p className="tracking-widest uppercase text-sm">{emptyMessage}</p>
       </div>
     );
   }

@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { AuthProvider } from "@/lib/context/AuthContext";
+import { AuthPanelProvider } from "@/lib/context/AuthPanelContext";
 import { CartProvider } from "@/lib/context/CartContext";
 import { ToastProvider } from "@/lib/context/ToastContext";
 
@@ -12,8 +13,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            // With SSR, we usually want to set some default staleTime
-            // above 0 to avoid refetching immediately on the client
             staleTime: 60 * 1000,
           },
         },
@@ -24,9 +23,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <AuthProvider>
-          <CartProvider>
-            {children}
-          </CartProvider>
+          <AuthPanelProvider>
+            <CartProvider>
+              {children}
+            </CartProvider>
+          </AuthPanelProvider>
         </AuthProvider>
       </ToastProvider>
     </QueryClientProvider>

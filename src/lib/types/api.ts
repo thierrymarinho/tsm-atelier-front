@@ -1,6 +1,102 @@
-export type Category = 'CLOTHING' | 'ACCESSORY';
-export type TargetAudience = 'MEN' | 'WOMEN' | 'UNISEX' | 'KIDS';
-export type DisplayPosition = 'CAROUSEL_1' | 'GRID' | 'FEATURED' | 'NEW_ARRIVALS' | 'HEADER' | 'HOME_MAIN' | 'HOME_SECONDARY';
+import type { OrderStatus } from './admin';
+
+export const CATEGORIES = [
+  'JACKETS',
+  'COATS_AND_TRENCHES',
+  'DRESSES',
+  'BLAZERS',
+  'SHIRTS_AND_BLOUSES',
+  'JEANS',
+  'T_SHIRTS',
+  'SHIRTS',
+  'SKIRTS_AND_SHORTS',
+  'SHORTS',
+] as const;
+
+export type Category = (typeof CATEGORIES)[number];
+
+export const TARGET_AUDIENCES = ['MEN', 'WOMEN'] as const;
+
+export type TargetAudience = (typeof TARGET_AUDIENCES)[number];
+
+export const MATERIALS = [
+  'COTTON',
+  'LINEN',
+  'WOOL',
+  'SILK',
+  'CASHMERE',
+  'LEATHER',
+  'VISCOSE',
+  'MODAL',
+  'LYOCELL',
+  'POLYESTER',
+  'POLYAMIDE',
+  'ELASTANE',
+  'ACRYLIC',
+  'POLYURETHANE',
+] as const;
+
+export type Material = (typeof MATERIALS)[number];
+
+export interface MaterialOption {
+  name: Material;
+  label: string;
+}
+
+export const CARE_AXES = [
+  'WASH',
+  'BLEACH',
+  'TUMBLE_DRY',
+  'NATURAL_DRY',
+  'IRON',
+  'PROFESSIONAL',
+] as const;
+
+export type CareAxis = (typeof CARE_AXES)[number];
+
+export const CARE_INSTRUCTIONS = [
+  'MACHINE_WASH_COLD',
+  'MACHINE_WASH_WARM',
+  'HAND_WASH',
+  'DO_NOT_WASH',
+  'NON_CHLORINE_BLEACH',
+  'DO_NOT_BLEACH',
+  'TUMBLE_DRY_LOW',
+  'DO_NOT_TUMBLE_DRY',
+  'LINE_DRY',
+  'DRY_FLAT',
+  'DRY_IN_SHADE',
+  'IRON_LOW',
+  'IRON_MEDIUM',
+  'DO_NOT_IRON',
+  'DRY_CLEAN',
+  'DO_NOT_DRY_CLEAN',
+] as const;
+
+export type CareInstruction = (typeof CARE_INSTRUCTIONS)[number];
+
+export interface CareInstructionDetail {
+  instruction: CareInstruction;
+  label: string;
+  axis: CareAxis;
+}
+
+export interface CareAxisOptions {
+  axis: CareAxis;
+  label: string;
+  options: { name: CareInstruction; label: string }[];
+}
+
+export const DISPLAY_POSITIONS = [
+  'HOME_MAIN',
+  'HOME_SECONDARY',
+  'HEADER',
+  'NEW_ARRIVALS',
+  'FEATURED',
+  'NONE',
+] as const;
+
+export type DisplayPosition = (typeof DISPLAY_POSITIONS)[number];
 
 export interface Sku {
   id: number;
@@ -24,11 +120,13 @@ export interface ProductResponseDTO {
   slug: string;
   description: string;
   fabricCompositions: {
-    material: string;
+    material: Material;
+    label: string;
     percentage: number;
   }[];
-  careInstructions: string[];
+  careInstructions: CareInstructionDetail[];
   price: number;
+  promotionalPrice: number | null;
   collectionId: number | null;
   category: Category;
   targetAudience: TargetAudience;
@@ -41,33 +139,48 @@ export interface ProductSummaryDTO {
   name: string;
   slug: string;
   price: number;
+  promotionalPrice: number | null;
   coverImageUrl: string;
   hoverImageUrl: string;
   colorsHex: string[];
 }
 
-export interface PaginatedResponse<T> {
-  content: T[];
-  pageable: any;
+export interface PageMetadata {
+  size: number;
+  number: number;
   totalElements: number;
   totalPages: number;
+}
+
+export interface PaginatedResponse<T> {
+  content: T[];
+  page: PageMetadata;
 }
 
 export interface CollectionResponseDTO {
   id: number;
   name: string;
   slug: string;
-  description: string;
+  description: string | null;
   active: boolean;
-  heroImageUrl: string;
-  portraitImageUrl: string;
-  squareImageUrl: string;
+  heroImageUrl: string | null;
+  portraitImageUrl: string | null;
+  squareImageUrl: string | null;
   displayPosition: DisplayPosition;
-  displayOrder: number;
+  displayOrder: number | null;
   targetAudience: TargetAudience;
 }
 
-// --- Authentication ---
+export function pickCollectionImage(
+  collection: Pick<CollectionResponseDTO, 'heroImageUrl' | 'portraitImageUrl' | 'squareImageUrl'>,
+  order: readonly ['heroImageUrl' | 'portraitImageUrl' | 'squareImageUrl', ...('heroImageUrl' | 'portraitImageUrl' | 'squareImageUrl')[]],
+): string | null {
+  for (const key of order) {
+    const url = collection[key];
+    if (url) return url;
+  }
+  return null;
+}
 
 export interface LoginRequestDTO {
   email: string;
@@ -90,23 +203,29 @@ export interface RegisterResponseDTO {
   message: string;
 }
 
+export interface VerifyEmailRequestDTO {
+  token: string;
+}
+
+export type Role = 'CUSTOMER' | 'ADMIN';
+
 export interface UserResponseDTO {
   id: string;
   firstName: string;
   lastName: string;
   name: string;
   email: string;
-  role: string;
+  role: Role;
 }
 
 export interface ApiErrorResponse {
   status: number;
-  title: string;
-  detail: string;
+  type?: string;
+  title?: string;
+  detail?: string;
+  instance?: string;
   fields?: Record<string, string>;
 }
-
-// --- Address ---
 
 export type BrazilianState =
   | 'AC' | 'AL' | 'AP' | 'AM' | 'BA' | 'CE' | 'DF' | 'ES' | 'GO'
@@ -142,8 +261,6 @@ export interface AddressRequestDTO {
   isDefault: boolean;
 }
 
-// --- Checkout ---
-
 export interface CheckoutItemRequestDTO {
   skuId: number;
   quantity: number;
@@ -168,8 +285,6 @@ export interface CheckoutResponseDTO {
   items: any[];
 }
 
-// --- Orders ---
-
 export interface OrderItemResponseDTO {
   id: number;
   skuId: number;
@@ -179,21 +294,20 @@ export interface OrderItemResponseDTO {
   color: string;
   imageUrl: string;
   priceAtPurchase: number;
+  listPriceAtPurchase: number;
   quantity: number;
 }
 
 export interface OrderResponseDTO {
   id: number;
-  status: string;
+  status: OrderStatus;
   totalAmount: number;
   shippingFee: number;
   createdAt: string;
   shippingAddress: AddressResponseDTO;
   items: OrderItemResponseDTO[];
-  clientSecret?: string; // Included when status is PENDING_PAYMENT
+  clientSecret?: string;
 }
-
-// --- Cart ---
 
 export interface CartItemRequestDTO {
   skuId: number;

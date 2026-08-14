@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api/client";
 import { OrderResponseDTO, PaginatedResponse } from "@/lib/types/api";
-import { Loader2, Package, ChevronRight } from "lucide-react";
+import { Loader2, Package } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { PaymentDrawer } from "@/components/checkout/PaymentDrawer";
+import { ProductPrice } from "@/components/domain/ProductPrice";
+import { translateOrderStatus } from "@/lib/utils/translations";
 
 export function OrdersList() {
   const [orders, setOrders] = useState<OrderResponseDTO[]>([]);
@@ -18,7 +20,6 @@ export function OrdersList() {
   const fetchOrders = async () => {
     setIsLoading(true);
     try {
-      // Assuming paginated response based on API guide
       const { data } = await apiClient.get<PaginatedResponse<OrderResponseDTO>>("/v1/orders/my-orders");
       setOrders(data.content);
     } catch (err) {
@@ -47,17 +48,6 @@ export function OrdersList() {
       month: "short",
       year: "numeric"
     }).format(date);
-  };
-
-  const translateStatus = (status: string) => {
-    const statusMap: Record<string, string> = {
-      'PENDING_PAYMENT': 'Aguardando Pagamento',
-      'PAID': 'Pago',
-      'SHIPPED': 'Enviado',
-      'DELIVERED': 'Entregue',
-      'CANCELED': 'Cancelado'
-    };
-    return statusMap[status] || status;
   };
 
   const handlePayNow = (order: OrderResponseDTO) => {
@@ -102,8 +92,7 @@ export function OrdersList() {
     <div className="flex flex-col gap-6">
       {orders.map((order) => (
         <div key={order.id} className="border border-muted bg-background">
-          
-          {/* Order Header */}
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-6 border-b border-muted bg-muted/5 gap-4">
             <div className="flex flex-wrap gap-x-8 gap-y-4 text-sm">
               <div className="flex flex-col gap-1">
@@ -120,7 +109,7 @@ export function OrdersList() {
               </div>
               <div className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground uppercase tracking-widest">Status</span>
-                <span className="font-medium text-foreground">{translateStatus(order.status)}</span>
+                <span className="font-medium text-foreground">{translateOrderStatus(order.status)}</span>
               </div>
             </div>
             {order.status === 'PENDING_PAYMENT' && order.clientSecret && (
@@ -133,9 +122,12 @@ export function OrdersList() {
             )}
           </div>
 
-          {/* Order Items */}
           <div className="p-4 sm:p-6 flex flex-col gap-6">
-            {order.items.map((item) => (
+            {order.items.map((item) => {
+
+              const hadDiscount = item.listPriceAtPurchase > item.priceAtPurchase;
+
+              return (
               <div key={item.id} className="flex gap-4">
                 <div className="w-20 h-24 relative bg-muted flex-shrink-0 flex items-center justify-center">
                   {item.imageUrl ? (
@@ -156,17 +148,21 @@ export function OrdersList() {
                   <span className="text-muted-foreground">Tamanho: {item.size}</span>
                   <div className="flex justify-between items-end mt-2">
                     <span className="text-muted-foreground">Qtd: {item.quantity}</span>
-                    <span className="font-medium">{formatPrice(item.priceAtPurchase)}</span>
+                    <ProductPrice
+                      listPrice={hadDiscount ? item.listPriceAtPurchase : item.priceAtPurchase}
+                      salePrice={hadDiscount ? item.priceAtPurchase : null}
+                    />
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
-          
+
         </div>
       ))}
 
-      <PaymentDrawer 
+      <PaymentDrawer
         isOpen={isPaymentDrawerOpen}
         onClose={() => setIsPaymentDrawerOpen(false)}
         clientSecret={selectedOrderForPayment?.clientSecret || null}

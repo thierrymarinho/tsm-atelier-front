@@ -15,11 +15,44 @@
 
   --animate-fade-in: fade-in 1s ease-out forwards;
   --animate-slide-up: slide-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+
+  /*
+   * Entrance animations for overlays and panels.
+   *
+   * These replace `animate-in fade-in zoom-in-95`, which came from
+   * `tailwindcss-animate` — a plugin this project does not have. Tailwind emits
+   * nothing for a class it cannot resolve, so those three classes had been
+   * silently dead: the payment drawer, the address form and the account tabs
+   * all appeared with no transition at all.
+   *
+   * Faster than `--animate-fade-in` above, which is a one-second editorial fade
+   * meant for the hero. A modal backdrop at that speed reads as lag.
+   *
+   * No `forwards` here, unlike the two above. Those animate elements that carry
+   * `opacity-0` as a class, so they need the final frame to stick. These do not,
+   * and skipping the fill matters for `zoom-in`: with `forwards` the element
+   * would keep `transform: scale(1)` after finishing, and any transform — even
+   * an identity one — makes the element a containing block for `position: fixed`
+   * descendants. Ending on `transform: none` leaves nothing behind.
+   */
+  --animate-fade-in-fast: fade-in 200ms ease-out;
+  --animate-zoom-in: zoom-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@keyframes zoom-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @keyframes slide-up {
@@ -36,19 +69,123 @@
 :root {
   background-color: var(--color-background);
   color: var(--color-foreground);
+
+  /*
+   * Height of the fixed header, in one place.
+   *
+   * It was written by hand in two: `h-16 sm:h-20` on the bar itself, and the
+   * literal `80px` in `ProductDetails` (`md:top-20`, `calc(100vh-80px)`) that
+   * positions the sticky product panel beneath it. Nothing tied the two
+   * together, so changing the bar would have silently misaligned the panel.
+   *
+   * The breakpoint below matches the bar's own `sm:` step exactly — 40rem is
+   * Tailwind's `sm`.
+   */
+  --header-height: 4rem;
+}
+
+@media (width >= 40rem) {
+  :root {
+    --header-height: 5rem;
+  }
 }
 
 /* Removed prefers-color-scheme: dark to force Light Mode */
 
+/*
+ * The horizontal-overflow guard is NOT here.
+ *
+ * It lives on `<main>` in `app/layout.tsx`, and the placement is the point. Any
+ * overflow value other than `visible` on the root element is propagated to the
+ * viewport, and the viewport is the thing that scrolls the page — so a guard
+ * written here would be reaching into the machinery it is meant to stay clear
+ * of. On `<main>` it clips exactly what it was meant to clip, page content,
+ * and touches nothing else.
+ */
+
 html, body {
+  /*
+   * dvh, not vh. On mobile browsers `100vh` is measured against the *largest*
+   * viewport — the one with the URL bar already collapsed — so the page is
+   * taller than the visible area on load and visibly jumps the first time the
+   * user scrolls. `100dvh` tracks the viewport as the chrome collapses.
+   * Fallback kept first for any engine without dvh support.
+   */
   min-height: 100vh;
+  min-height: 100dvh;
   scroll-behavior: smooth;
 }
 
-/* Glassmorphism utility class for Tailwind v4 */
-.glass {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+/*
+ * `.glass` lived here and was applied to the header alongside `bg-background`
+ * and `border-muted`. It was removed rather than fixed, for two reasons.
+ *
+ * First, it silently won. Declared outside any `@layer`, while every Tailwind
+ * utility sits inside `@layer utilities` — and an unlayered rule beats a
+ * layered one regardless of specificity or source order. So the header's
+ * `background` was really `rgba(255,255,255,0.1)`, not the opaque
+ * `--color-background`, and its bottom border was `rgba(255,255,255,0.2)`:
+ * white at 20% on a white page, i.e. no border at all. The checkout and contact
+ * headers asked for that line in the JSX and never got it.
+ *
+ * Second, once the background is honoured it is `#ffffff` — fully opaque — so
+ * `backdrop-filter: blur()` has nothing left to blur and only costs a
+ * compositing layer. Nothing remained worth keeping.
+ */
+
+/*
+ * Barra de rolagem discreta, para painéis que rolam dentro da página.
+ *
+ * `@utility` e não uma regra solta: é o que registra a classe dentro de
+ * `@layer utilities`, junto das outras — uma regra fora de camada venceria
+ * qualquer utilitário do Tailwind independentemente de ordem ou
+ * especificidade, que foi exatamente o defeito do `.glass` documentado acima.
+ *
+ * Ela é fina em vez de invisível, e a diferença importa. Os carrosséis deste
+ * projeto escondem a barra por completo (`[scrollbar-width:none]` na galeria do
+ * produto e no de novidades), e ali isso é honesto: são listas horizontais em
+ * que o próximo item aparece cortado na borda, e o corte já anuncia que há
+ * mais. Num painel vertical não há item espiando — sumir com a barra faria o
+ * conteúdo parecer terminado onde ele só foi recortado, que é o mesmo engano
+ * que o painel de filtros acabou de deixar de cometer.
+ *
+ * `scrollbar-color` cobre Firefox e Chromium 121+; o bloco `::-webkit-` atende
+ * o Safari e os Chromium anteriores. Trilho transparente para a barra não
+ * desenhar uma segunda régua ao lado da coluna, e polegar em
+ * `--color-muted-foreground` a 40%, que no branco desta paleta fica visível sem
+ * competir com o texto dos filtros.
+ */
+@utility scrollbar-slim {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-muted-foreground) 40%, transparent) transparent;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  /*
+   * As setinhas das pontas.
+   *
+   * Elas não somem por consequência de estilizar a barra: o WebKit continua
+   * reservando o espaço delas, e numa barra de 4px o botão sai maior que o
+   * próprio polegar — dois triângulos empilhados onde deveria haver só um
+   * traço. `display: none` é o que as tira do fluxo, e não `visibility`, que
+   * deixaria a reserva de espaço de pé.
+   */
+  &::-webkit-scrollbar-button {
+    display: none;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--color-muted-foreground) 40%, transparent);
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in srgb, var(--color-muted-foreground) 70%, transparent);
+  }
 }

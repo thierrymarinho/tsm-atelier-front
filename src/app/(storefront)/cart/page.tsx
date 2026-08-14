@@ -1,13 +1,14 @@
 "use client";
 
 import { useCart } from "@/lib/context/CartContext";
+import { ExpiredSessionNotice } from "@/components/cart/ExpiredSessionNotice";
 import Image from "next/image";
 import Link from "next/link";
 import { Minus, Plus, ShoppingBag } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export default function CartPage() {
-  const { items, cartTotal, cartCount, removeItem, updateQuantity } = useCart();
+  const { items, cartTotal, cartCount, removeItem, updateQuantity, isLocked } = useCart();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -48,15 +49,15 @@ export default function CartPage() {
         CARRINHO ({cartCount})
       </h1>
 
+      {isLocked && <ExpiredSessionNotice />}
+
       <div className="flex flex-col lg:flex-row gap-12 lg:gap-16">
-        
-        {/* Items List */}
+
         <div className="flex-1 flex flex-col gap-10">
           {items.map((item) => (
             <div key={item.id} className="flex flex-col sm:flex-row gap-6 sm:gap-8 pb-10 border-b border-muted">
-              
-              {/* Image */}
-              <Link 
+
+              <Link
                 href={`/product/${item.slug}`}
                 className="w-full sm:w-64 h-80 sm:h-72 relative bg-muted/20 flex-shrink-0 group block overflow-hidden"
               >
@@ -69,10 +70,9 @@ export default function CartPage() {
                 />
               </Link>
 
-              {/* Info & Actions */}
               <div className="flex flex-col flex-1 justify-between py-2">
                 <div className="flex flex-col gap-2">
-                  <Link 
+                  <Link
                     href={`/product/${item.slug}`}
                     className="font-medium text-base hover:opacity-70 transition-opacity uppercase tracking-wide"
                   >
@@ -80,8 +80,7 @@ export default function CartPage() {
                   </Link>
                   <p className="text-sm text-muted-foreground mt-1">Cor: {item.colorName}</p>
                   <p className="text-sm text-muted-foreground">Tamanho: {item.size}</p>
-                  
-                  {/* Quantity Control */}
+
                   <div className="flex items-center gap-4 mt-2">
                     <span className="text-sm text-muted-foreground flex items-center gap-2">
                       Quantidade:
@@ -94,7 +93,8 @@ export default function CartPage() {
                     <div className="flex items-center border border-muted w-24">
                       <button
                         onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        className="flex-1 py-1 flex items-center justify-center hover:bg-muted/50 transition-colors"
+                        disabled={isLocked}
+                        className="flex-1 py-1 flex items-center justify-center hover:bg-muted/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                         aria-label="Diminuir quantidade"
                       >
                         <Minus className="w-3 h-3" strokeWidth={2} />
@@ -104,10 +104,10 @@ export default function CartPage() {
                       </span>
                       <button
                         onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        disabled={item.quantity >= Math.min(10, item.stockQuantity)}
+                        disabled={isLocked || item.quantity >= Math.min(10, item.stockQuantity)}
                         className={`flex-1 py-1 flex items-center justify-center transition-colors ${
-                          item.quantity >= Math.min(10, item.stockQuantity) 
-                            ? "opacity-30 cursor-not-allowed" 
+                          isLocked || item.quantity >= Math.min(10, item.stockQuantity)
+                            ? "opacity-30 cursor-not-allowed"
                             : "hover:bg-muted/50"
                         }`}
                         aria-label="Aumentar quantidade"
@@ -119,17 +119,16 @@ export default function CartPage() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between mt-8 sm:mt-0 gap-6">
-                  {/* Action Link */}
                   <div className="flex items-center gap-6">
                     <button
                       onClick={() => removeItem(item.id)}
-                      className="text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4"
+                      disabled={isLocked}
+                      className="text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-muted-foreground"
                     >
                       Excluir
                     </button>
                   </div>
 
-                  {/* Price */}
                   <span className="font-semibold text-lg">
                     {formatPrice(item.price * item.quantity)}
                   </span>
@@ -140,13 +139,12 @@ export default function CartPage() {
           ))}
         </div>
 
-        {/* Order Summary (Desktop Sticky / Mobile Bottom) */}
         <div className="w-full lg:w-[380px] flex-shrink-0">
           <div className="bg-muted/10 p-6 sm:p-8 lg:sticky lg:top-24">
             <h2 className="text-sm font-semibold tracking-widest uppercase mb-6 pb-4 border-b border-muted">
               Resumo do Pedido
             </h2>
-            
+
             <div className="flex flex-col gap-4 mb-8">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal</span>
@@ -165,7 +163,14 @@ export default function CartPage() {
               <span>{formatPrice(cartTotal)}</span>
             </div>
 
-            {items.some(item => !item.available) ? (
+            {isLocked ? (
+              <button
+                disabled
+                className="w-full py-4 bg-muted border border-muted text-muted-foreground text-center text-xs tracking-widest uppercase font-semibold cursor-not-allowed flex items-center justify-center"
+              >
+                Entre para continuar
+              </button>
+            ) : items.some(item => !item.available) ? (
               <button
                 disabled
                 className="w-full py-4 bg-muted border border-muted text-muted-foreground text-center text-xs tracking-widest uppercase font-semibold cursor-not-allowed flex items-center justify-center"
@@ -182,7 +187,7 @@ export default function CartPage() {
             )}
 
             <p className="text-xs text-muted-foreground text-center mt-6 leading-relaxed">
-              Pagamento seguro. Suas informações estão protegidas. 
+              Pagamento seguro. Suas informações estão protegidas.
               Troca gratuita em até 30 dias.
             </p>
           </div>

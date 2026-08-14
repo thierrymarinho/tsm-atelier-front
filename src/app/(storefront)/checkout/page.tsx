@@ -3,22 +3,23 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/context/AuthContext";
+import { useAuthPanel } from "@/lib/context/AuthPanelContext";
+import { rememberAuthIntent } from "@/lib/auth-intent";
 import { useCart } from "@/lib/context/CartContext";
+import { SignInRequired } from "@/components/auth/SignInRequired";
 import { AddressSelector } from "@/components/checkout/AddressSelector";
-import { CheckoutForm } from "@/components/checkout/CheckoutForm";
 import { apiClient } from "@/lib/api/client";
 import { CheckoutRequestDTO, CheckoutResponseDTO } from "@/lib/types/api";
 import { Loader2, ShoppingBag } from "lucide-react";
 import Image from "next/image";
 import { PaymentDrawer } from "@/components/checkout/PaymentDrawer";
 
-
-
 export default function CheckoutPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
-  const { items, cartTotal } = useCart();
-  
+  const { openAuthPanel } = useAuthPanel();
+  const { items, cartTotal, isLoaded: isCartLoaded } = useCart();
+
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
@@ -26,27 +27,25 @@ export default function CheckoutPage() {
   const [checkoutData, setCheckoutData] = useState<CheckoutResponseDTO | null>(null);
   const [isPaymentDrawerOpen, setIsPaymentDrawerOpen] = useState(false);
 
-  // Protect route
   useEffect(() => {
     if (!isAuthLoading && !isAuthenticated) {
-      // Could open the auth panel here, or redirect to home with a message
-      router.push("/");
+      rememberAuthIntent("/checkout");
+      openAuthPanel();
     }
-  }, [isAuthenticated, isAuthLoading, router]);
+  }, [isAuthenticated, isAuthLoading, openAuthPanel]);
 
-  // Redirect if cart is empty
   useEffect(() => {
-    if (items.length === 0) {
+    if (isAuthenticated && isCartLoaded && items.length === 0) {
       router.push("/cart");
     }
-  }, [items, router]);
+  }, [isAuthenticated, isCartLoaded, items, router]);
 
   const handleCreateOrder = async () => {
     if (!selectedAddressId) return;
-    
+
     setIsCreatingOrder(true);
     setOrderError("");
-    
+
     try {
       const payload: CheckoutRequestDTO = {
         addressId: selectedAddressId,
@@ -62,12 +61,13 @@ export default function CheckoutPage() {
       setIsPaymentDrawerOpen(true);
     } catch (error: any) {
       const errorData = error?.response?.data;
-      if (errorData?.status === 422 && errorData?.fields) {
-        // Format validation errors nicely
+      const status = error?.response?.status ?? errorData?.status;
+
+      if (status === 422 && errorData?.fields) {
         const fieldErrors = Object.entries(errorData.fields)
           .map(([field, msg]) => `- ${field}: ${msg}`)
-          .join("\\n");
-        setOrderError(`Erro de validação:\\n${fieldErrors}`);
+          .join("\n");
+        setOrderError(`Erro de validação:\n${fieldErrors}`);
       } else {
         setOrderError(errorData?.detail || "Erro ao inicializar o pagamento. Tente novamente.");
       }
@@ -83,7 +83,16 @@ export default function CheckoutPage() {
     }).format(price);
   };
 
-  if (isAuthLoading || !isAuthenticated || items.length === 0) {
+  if (!isAuthLoading && !isAuthenticated) {
+    return (
+      <SignInRequired
+        title="Entre para finalizar"
+        description="Faça login para concluir sua compra. Seu carrinho será mantido e sincronizado com a sua conta."
+      />
+    );
+  }
+
+  if (isAuthLoading || !isCartLoaded || items.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -98,18 +107,16 @@ export default function CheckoutPage() {
       </h1>
 
       <div className="flex flex-col lg:flex-row gap-12 lg:gap-16">
-        
-        {/* Left Column: Steps */}
+
         <div className="flex-1 flex flex-col gap-10">
-          
-          {/* Step 1: Address */}
+
           <div>
             <h2 className="text-sm font-semibold tracking-widest uppercase mb-6 flex items-center gap-4">
               <span className="w-6 h-6 rounded-full bg-foreground text-background flex items-center justify-center text-xs">1</span>
               Entrega
             </h2>
             <AddressSelector onAddressSelected={setSelectedAddressId} />
-            
+
             <button
               onClick={clientSecret ? () => setIsPaymentDrawerOpen(true) : handleCreateOrder}
               disabled={!selectedAddressId || isCreatingOrder}
@@ -118,22 +125,20 @@ export default function CheckoutPage() {
               {isCreatingOrder && <Loader2 className="w-4 h-4 animate-spin" />}
               {clientSecret ? "Finalizar Pagamento" : "Continuar para Pagamento"}
             </button>
-            
+
             {orderError && (
               <p className="text-sm text-red-500 mt-4 whitespace-pre-line leading-relaxed">{orderError}</p>
             )}
           </div>
         </div>
 
-        {/* Right Column: Order Summary */}
         <div className="w-full lg:w-[420px] flex-shrink-0">
           <div className="bg-muted/5 border border-muted p-6 sm:p-8 lg:sticky lg:top-24">
             <h2 className="text-sm font-semibold tracking-widest uppercase mb-6 flex items-center gap-2 pb-4 border-b border-muted">
               <ShoppingBag className="w-4 h-4" />
               Resumo do Pedido
             </h2>
-            
-            {/* Items List Mini */}
+
             <div className="flex flex-col gap-4 mb-6 max-h-80 overflow-y-auto pr-2">
               {items.map(item => (
                 <div key={item.id} className="flex gap-4">
@@ -176,8 +181,8 @@ export default function CheckoutPage() {
             <div className="flex items-center justify-between font-semibold text-base mt-6 pt-6 border-t border-foreground">
               <span>Total Estimado</span>
               <span>
-                {checkoutData 
-                  ? formatPrice(checkoutData.totalAmount) 
+                {checkoutData
+                  ? formatPrice(checkoutData.totalAmount)
                   : formatPrice(cartTotal)
                 }
               </span>
@@ -186,8 +191,8 @@ export default function CheckoutPage() {
         </div>
 
       </div>
-      
-      <PaymentDrawer 
+
+      <PaymentDrawer
         isOpen={isPaymentDrawerOpen}
         onClose={() => setIsPaymentDrawerOpen(false)}
         clientSecret={clientSecret}
