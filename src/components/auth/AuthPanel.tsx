@@ -7,6 +7,32 @@ import { ApiErrorResponse } from "@/lib/types/api";
 
 type AuthView = "login" | "register" | "pending";
 
+const NAME_MIN = 2;
+const NAME_MAX = 50;
+const EMAIL_MAX = 255;
+const PASSWORD_MIN = 8;
+const PASSWORD_MAX = 72;
+
+const TITLE_EMAIL_UNVERIFIED = "Email not verified";
+const TITLE_ACCOUNT_LOCKED = "Account Locked";
+
+const RETRY_WINDOW = /(\d+)\s*(second|minute|hour)/i;
+const RETRY_UNITS: Record<string, [singular: string, plural: string]> = {
+  second: ["segundo", "segundos"],
+  minute: ["minuto", "minutos"],
+  hour: ["hora", "horas"],
+};
+
+function formatRetryAfter(detail: unknown): string {
+  if (typeof detail !== "string") return "";
+  const match = RETRY_WINDOW.exec(detail);
+  if (!match) return "";
+  const amount = Number(match[1]);
+  const unit = RETRY_UNITS[match[2].toLowerCase()];
+  if (!Number.isFinite(amount) || amount <= 0 || !unit) return "";
+  return ` Tente novamente em ${amount} ${amount === 1 ? unit[0] : unit[1]}.`;
+}
+
 interface AuthPanelProps {
   isOpen: boolean;
   onClose: () => void;
@@ -29,8 +55,8 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [registeredEmail, setRegisteredEmail] = useState("");
+  const [pendingKind, setPendingKind] = useState<"registered" | "resent">("registered");
 
-  // Form fields
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -56,6 +82,7 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
     resetForm();
     setView("login");
     setRegisteredEmail("");
+    setPendingKind("registered");
     onClose();
   };
 
@@ -65,14 +92,14 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
     if (view === "register") {
       if (!firstName.trim()) {
         newErrors.firstName = "Nome é obrigatório.";
-      } else if (firstName.trim().length < 3 || firstName.trim().length > 50) {
-        newErrors.firstName = "Nome deve ter entre 3 e 50 caracteres.";
+      } else if (firstName.trim().length < NAME_MIN || firstName.trim().length > NAME_MAX) {
+        newErrors.firstName = `Nome deve ter entre ${NAME_MIN} e ${NAME_MAX} caracteres.`;
       }
 
       if (!lastName.trim()) {
         newErrors.lastName = "Sobrenome é obrigatório.";
-      } else if (lastName.trim().length < 3 || lastName.trim().length > 50) {
-        newErrors.lastName = "Sobrenome deve ter entre 3 e 50 caracteres.";
+      } else if (lastName.trim().length < NAME_MIN || lastName.trim().length > NAME_MAX) {
+        newErrors.lastName = `Sobrenome deve ter entre ${NAME_MIN} e ${NAME_MAX} caracteres.`;
       }
     }
 
@@ -80,23 +107,28 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
       newErrors.email = "Email é obrigatório.";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       newErrors.email = "Formato de email inválido.";
+    } else if (email.trim().length > EMAIL_MAX) {
+      newErrors.email = `Email deve ter no máximo ${EMAIL_MAX} caracteres.`;
     }
 
     if (!password) {
       newErrors.password = "Senha é obrigatória.";
-    } else if (password.length < 6 || password.length > 30) {
-      newErrors.password = "Senha deve ter entre 6 e 30 caracteres.";
+    } else if (
+      view === "register" &&
+      (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX)
+    ) {
+      newErrors.password = `Senha deve ter entre ${PASSWORD_MIN} e ${PASSWORD_MAX} caracteres.`;
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const parseApiError = (error: any): string => {
+  const parseApiError = (error: any): { message: string; offerResend: boolean } => {
     const data = error?.response?.data as ApiErrorResponse | undefined;
     const status = error?.response?.status;
+    const title = data?.title;
 
-    // Handle field-level validation errors (422)
     if (status === 422 && data?.fields) {
       const fieldErrors: FormErrors = {};
       if (data.fields.firstName) fieldErrors.firstName = data.fields.firstName;
@@ -104,45 +136,69 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
       if (data.fields.email) fieldErrors.email = data.fields.email;
       if (data.fields.password) fieldErrors.password = data.fields.password;
       setErrors(fieldErrors);
-      return data.detail || "Um ou mais campos são inválidos.";
+      return {
+        message: data.detail || "Um ou mais campos são inválidos.",
+        offerResend: false,
+      };
     }
 
     if (status === 401) {
-      return "Email ou senha incorretos.";
+      return { message: "Email ou senha incorretos.", offerResend: false };
     }
 
     if (status === 403) {
-      return "Seu email ainda não foi verificado. Verifique sua caixa de entrada.";
+      if (title === TITLE_EMAIL_UNVERIFIED) {
+        return {
+          message: "Seu email ainda não foi verificado. Verifique sua caixa de entrada.",
+          offerResend: true,
+        };
+      }
+      if (!data) {
+        return {
+          message: "Não foi possível validar sua requisição. Recarregue a página e tente novamente.",
+          offerResend: false,
+        };
+      }
+      return {
+        message: "Você não tem permissão para esta ação.",
+        offerResend: false,
+      };
     }
 
     if (status === 409) {
-      return "Este email já está cadastrado.";
+      return { message: "Este email já está cadastrado.", offerResend: false };
     }
 
-    return data?.detail || "Ocorreu um erro. Tente novamente.";
+    if (status === 429) {
+      const wait = formatRetryAfter(data?.detail);
+      return {
+        message:
+          title === TITLE_ACCOUNT_LOCKED
+            ? `Muitas tentativas de senha incorreta. Sua conta está temporariamente bloqueada.${wait}`
+            : `Muitas tentativas em pouco tempo.${wait || " Aguarde alguns minutos e tente novamente."}`,
+        offerResend: false,
+      };
+    }
+
+    return {
+      message: data?.detail || "Ocorreu um erro. Tente novamente.",
+      offerResend: false,
+    };
   };
 
   const handleResendEmail = async () => {
     setIsResending(true);
     setServerError("");
+    const target = email;
     try {
-      await resendVerificationEmail(email);
-      setRegisteredEmail(email);
+      await resendVerificationEmail(target);
+      setRegisteredEmail(target);
+      setPendingKind("resent");
       resetForm();
       setView("pending");
     } catch (error: any) {
-      const status = error?.response?.status;
-      const detail = error?.response?.data?.detail;
-      const message = typeof error?.response?.data === 'string' ? error.response.data : (detail || "");
-      
-      if (status === 400 && message.toLowerCase().includes("already verified")) {
-        setServerError("Este email já foi verificado. Você pode fazer login.");
-        setIsEmailUnverified(false);
-      } else if (status === 400) {
-        setServerError("Usuário não encontrado.");
-      } else {
-        setServerError("Erro ao reenviar email. Tente novamente.");
-      }
+      const { message } = parseApiError(error);
+      setServerError(message);
     } finally {
       setIsResending(false);
     }
@@ -161,18 +217,15 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
         handleClose();
       } else {
         await register({ firstName: firstName.trim(), lastName: lastName.trim(), email, password });
-        // Registration succeeded — show "check your email" view
         setRegisteredEmail(email);
+        setPendingKind("registered");
         resetForm();
         setView("pending");
       }
     } catch (error: any) {
-      if (error?.response?.status === 403) {
-        setIsEmailUnverified(true);
-      } else {
-        setIsEmailUnverified(false);
-      }
-      setServerError(parseApiError(error));
+      const { message, offerResend } = parseApiError(error);
+      setIsEmailUnverified(offerResend);
+      setServerError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -188,7 +241,6 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
 
   return (
     <>
-      {/* Overlay */}
       <div
         className={`fixed inset-0 bg-black/50 z-50 transition-opacity duration-300 ${
           isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
@@ -196,13 +248,11 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
         onClick={handleClose}
       />
 
-      {/* Panel (slides from right) */}
       <div
         className={`fixed top-0 right-0 h-full w-full max-w-[420px] bg-background z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-muted">
           <h2 className="text-sm font-semibold tracking-wider uppercase text-foreground">
             {getTitle()}
@@ -215,10 +265,8 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
           </button>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-8">
 
-          {/* === PENDING VIEW: Email verification message === */}
           {view === "pending" && (
             <div className="flex flex-col items-center text-center gap-6 py-12">
               <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center">
@@ -228,12 +276,22 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
                 <h3 className="text-lg font-medium text-foreground tracking-wide">
                   Verifique seu email
                 </h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Enviamos um link de verificação para{" "}
-                  <strong className="text-foreground">{registeredEmail}</strong>.
-                  <br />
-                  Clique no link para ativar sua conta.
-                </p>
+                {pendingKind === "registered" ? (
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Enviamos um link de verificação para{" "}
+                    <strong className="text-foreground">{registeredEmail}</strong>.
+                    <br />
+                    Clique no link para ativar sua conta.
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Se houver uma conta pendente de verificação para{" "}
+                    <strong className="text-foreground">{registeredEmail}</strong>, um novo link
+                    acabou de ser enviado.
+                    <br />
+                    Clique no link para ativar sua conta.
+                  </p>
+                )}
               </div>
               <div className="w-full border-t border-muted pt-6 mt-4">
                 <p className="text-xs text-muted-foreground mb-4">
@@ -249,12 +307,10 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
             </div>
           )}
 
-          {/* === LOGIN / REGISTER FORM === */}
           {(view === "login" || view === "register") && (
             <>
               <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-                
-                {/* Register-only fields */}
+
                 {view === "register" && (
                   <>
                     <div className="flex flex-col gap-1.5">
@@ -297,7 +353,6 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
                   </>
                 )}
 
-                {/* Email */}
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="email" className="text-xs tracking-wide text-muted-foreground uppercase">
                     Email
@@ -317,7 +372,6 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
                   )}
                 </div>
 
-                {/* Password */}
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="password" className="text-xs tracking-wide text-muted-foreground uppercase">
                     Senha
@@ -350,7 +404,6 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
                   )}
                 </div>
 
-                {/* Server Error */}
                 {serverError && (
                   <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3 flex flex-col gap-2 text-sm text-red-600 dark:text-red-400">
                     <span>{serverError}</span>
@@ -359,7 +412,7 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
                         type="button"
                         onClick={handleResendEmail}
                         disabled={isResending}
-                        className="text-xs font-medium text-red-700 dark:text-red-300 underline underline-offset-4 hover:opacity-70 transition-opacity self-start flex items-center gap-2 mt-1"
+                        className="text-xs font-medium underline underline-offset-4 self-start flex items-center gap-2 mt-1 transition-colors text-red-600 dark:text-red-400 md:text-red-700 md:dark:text-red-300 md:hover:text-red-600 md:dark:hover:text-red-400"
                       >
                         {isResending && <Loader2 className="w-3 h-3 animate-spin" />}
                         Reenviar email de verificação
@@ -368,7 +421,6 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
                   </div>
                 )}
 
-                {/* Submit Button */}
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -379,7 +431,6 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
                 </button>
               </form>
 
-              {/* Switch View */}
               <div className="mt-8 text-center">
                 {view === "login" ? (
                   <p className="text-sm text-muted-foreground">

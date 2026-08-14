@@ -1,12 +1,15 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { apiClient } from "@/lib/api/client";
+import { apiClient, onSessionExpired } from "@/lib/api/client";
+import { useToast } from "@/lib/context/ToastContext";
+import { CART_STORAGE_KEY, readStoredCart } from "@/lib/cart-storage";
 import {
   UserResponseDTO,
   LoginRequestDTO,
   RegisterRequestDTO,
   RegisterResponseDTO,
+  VerifyEmailRequestDTO,
 } from "@/lib/types/api";
 
 interface AuthContextType {
@@ -25,60 +28,69 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserResponseDTO | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
   const fetchMe = useCallback(async () => {
     try {
       const response = await apiClient.get<UserResponseDTO>("/v1/auth/me");
       setUser(response.data);
     } catch {
-      // Not authenticated or token expired — user is a visitor
       setUser(null);
     }
   }, []);
 
-  // On mount, try to recover the session via /me
   useEffect(() => {
     fetchMe().finally(() => setIsLoading(false));
   }, [fetchMe]);
 
-  const login = async (data: LoginRequestDTO) => {
-    await apiClient.post("/v1/auth/login", data);
-    
-    // Sync local cart to backend silently
+  const hasSession = user !== null;
+  useEffect(() => {
+    return onSessionExpired((reason) => {
+      if (!hasSession) return;
+
+      setUser(null);
+      toast(
+        reason === "revoked"
+          ? "Por segurança, encerramos o acesso em todos os dispositivos: detectamos um uso suspeito da sua sessão. Entre novamente e, se não reconhece o acesso, troque sua senha."
+          : "Sua sessão expirou. Entre novamente para continuar.",
+        "error",
+      );
+    });
+  }, [hasSession, toast]);
+
+  const syncGuestCart = useCallback(async () => {
     try {
-      const storedCart = localStorage.getItem("tsm_cart");
-      if (storedCart) {
-        const localItems = JSON.parse(storedCart);
-        if (localItems.length > 0) {
-          const syncPayload = {
-            items: localItems.map((item: any) => ({
-              skuId: item.skuId,
-              quantity: item.quantity
-            }))
-          };
-          await apiClient.post("/v1/cart/sync", syncPayload);
-          // Clear local storage so API takes over completely
-          localStorage.removeItem("tsm_cart");
-        }
+      const localItems = readStoredCart();
+      if (localItems.length > 0) {
+        const syncPayload = {
+          items: localItems.map((item) => ({
+            skuId: item.skuId,
+            quantity: item.quantity,
+          })),
+        };
+        await apiClient.post("/v1/cart/sync", syncPayload);
       }
+      localStorage.removeItem(CART_STORAGE_KEY);
     } catch (error) {
       console.warn("Failed to sync local cart to backend", error);
     }
+  }, []);
 
+  const login = async (data: LoginRequestDTO) => {
+    await apiClient.post("/v1/auth/login", data);
+    await syncGuestCart();
     await fetchMe();
   };
 
   const register = async (data: RegisterRequestDTO): Promise<RegisterResponseDTO> => {
-    // POST /register → NO cookies set. Returns { message }.
-    // User must verify email before they can log in.
     const response = await apiClient.post<RegisterResponseDTO>("/v1/auth/register", data);
     return response.data;
   };
 
   const verifyEmail = async (token: string) => {
-    // GET /verify-email?token=xxx → cookies are set if valid
-    await apiClient.get("/v1/auth/verify-email", { params: { token } });
-    // Cookies are now set — fetch full profile
+    const payload: VerifyEmailRequestDTO = { token };
+    await apiClient.post("/v1/auth/verify-email", payload);
+    await syncGuestCart();
     await fetchMe();
   };
 
