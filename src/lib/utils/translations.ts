@@ -1,6 +1,8 @@
+import type { Role } from "@/lib/types/api";
+
 export const translateCategory = (category: string | undefined | null) => {
   if (!category) return "";
-  
+
   const translations: Record<string, string> = {
     CLOTHING: "Roupas",
     ACCESSORIES: "Acessórios",
@@ -10,8 +12,7 @@ export const translateCategory = (category: string | undefined | null) => {
     JEWELRY: "Joias",
     BEAUTY: "Beleza",
     HOME: "Casa",
-    
-    // Detailed categories from backend
+
     JACKETS: "Jaquetas",
     COATS_AND_TRENCHES: "Casacos e Sobretudos",
     DRESSES: "Vestidos",
@@ -29,25 +30,36 @@ export const translateCategory = (category: string | undefined | null) => {
   return translations[normalizedKey] || category;
 };
 
+export const translateRole = (role: Role): string => {
+  const translations: Record<Role, string> = {
+    CUSTOMER: "Cliente",
+    ADMIN: "Administrador",
+  };
+  return translations[role] ?? role;
+};
+
 export const translateTargetAudience = (audience: string | undefined | null) => {
   if (!audience) return "";
-  
+
   const translations: Record<string, string> = {
     WOMEN: "Mulher",
     MEN: "Homem",
     UNISEX: "Unissex",
     KIDS: "Infantil"
   };
-  
+
   const normalizedKey = audience.toString().trim().toUpperCase();
   return translations[normalizedKey] || audience;
 };
+
+export { translateOrderStatus } from "@/lib/admin/order-status";
+
+import { POSTAL_CODE_HINT } from "./postal-code";
 
 export const translateApiError = (message: string): string => {
   if (!message) return "";
 
   const translations: Record<string, string> = {
-    // Address Validation
     "Street is required": "A rua/avenida é obrigatória",
     "Street cannot exceed 255 characters": "A rua não pode exceder 255 caracteres",
     "Number is required": "O número é obrigatório",
@@ -59,23 +71,20 @@ export const translateApiError = (message: string): string => {
     "City cannot exceed 100 characters": "A cidade não pode exceder 100 caracteres",
     "State is required": "O estado (UF) é obrigatório",
     "Postal code is required": "O CEP é obrigatório",
-    "Invalid postal code format": "Formato de CEP inválido (esperado: 00000-000 ou 00000000)",
+    "Invalid postal code format": POSTAL_CODE_HINT,
 
-    // Others
     "One or more fields are invalid.": "Um ou mais campos são inválidos.",
     "Validation error": "Erro de validação",
     "Bad Request": "Requisição inválida",
   };
 
-  // Check if we have an exact match
   if (translations[message]) {
     return translations[message];
   }
 
-  // Handle generic 'must not be blank' or 'must not be null' if needed
   if (message.includes("must not be blank") || message.includes("is required")) {
     return "Campo obrigatório preenchido incorretamente.";
   }
 
-  return message; // return original if no translation found
+  return message;
 };
