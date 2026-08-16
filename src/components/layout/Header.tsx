@@ -225,8 +225,8 @@ export function Header() {
     enabled: activeMenu === "novidades",
   });
 
-  const { data: featuredCollections, isLoading: isLoadingFeatured } = useQuery({
-    queryKey: ['collections', 'featured'],
+  const { data: newArrivalsCollections, isLoading: isLoadingNewArrivals } = useQuery({
+    queryKey: ['collections', 'new-arrivals'],
     queryFn: async () => {
       const response = await apiClient.get<CollectionResponseDTO[]>('/v1/catalog/collections', {
         params: { position: 'NEW_ARRIVALS' }
@@ -572,12 +572,12 @@ export function Header() {
                </div>
 
                <div className="mt-8 px-6 pb-12 relative">
-                 {isLoadingFeatured ? (
+                 {isLoadingNewArrivals ? (
                    <div className="flex items-center gap-2 text-muted-foreground">
                      <Loader2 className="w-4 h-4 animate-spin" />
-                     <span className="text-sm">Carregando destaques...</span>
+                     <span className="text-sm">Carregando novidades...</span>
                    </div>
-                 ) : featuredCollections && featuredCollections.length > 0 ? (
+                 ) : newArrivalsCollections && newArrivalsCollections.length > 0 ? (
                    <div className="relative group">
                      <button
                        onClick={() => scrollCarousel('left')}
@@ -596,7 +596,7 @@ export function Header() {
                        ref={carouselRef}
                        className="flex overflow-x-auto gap-4 snap-x snap-mandatory scroll-smooth pb-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                      >
-                       {featuredCollections.map((collection) => (
+                       {newArrivalsCollections.map((collection) => (
                          <Link
                            key={collection.id}
                            href={`/collections/${collection.slug}`}
@@ -676,7 +676,7 @@ export function Header() {
                        >
                          <div className="relative w-full aspect-square overflow-hidden bg-muted mb-2">
                            {(() => {
-                             const src = pickCollectionImage(collection, ["portraitImageUrl", "squareImageUrl", "heroImageUrl"]);
+                             const src = pickCollectionImage(collection, ["squareImageUrl", "portraitImageUrl", "heroImageUrl"]);
                              return src ? (
                            <Image
                              src={src}
@@ -746,7 +746,7 @@ export function Header() {
                        >
                          <div className="relative w-full aspect-square overflow-hidden bg-muted mb-2">
                            {(() => {
-                             const src = pickCollectionImage(collection, ["portraitImageUrl", "squareImageUrl", "heroImageUrl"]);
+                             const src = pickCollectionImage(collection, ["squareImageUrl", "portraitImageUrl", "heroImageUrl"]);
                              return src ? (
                            <Image
                              src={src}
