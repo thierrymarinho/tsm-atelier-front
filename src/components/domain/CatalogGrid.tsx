@@ -1,7 +1,8 @@
 import { Loader2 } from "lucide-react";
-import { getProducts } from "@/lib/api/server";
-import { TargetAudience } from "@/lib/types/api";
+import { getProducts, isCatalogUnavailable } from "@/lib/api/server";
+import { ProductSummaryDTO, TargetAudience } from "@/lib/types/api";
 import { ProductCard } from "./ProductCard";
+import { ColdStartNotice } from "./ColdStartNotice";
 
 interface CatalogGridProps {
   targetAudience?: TargetAudience;
@@ -31,14 +32,12 @@ export async function CatalogGrid({
   size = 20,
   emptyMessage = "Nenhum produto ainda foi adicionado para essa coleção.",
 }: CatalogGridProps) {
-  const products = await getProducts({ targetAudience, category, collectionId, onSale, sort, size });
-
-  if (products === null) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px] text-muted-foreground">
-        <p className="tracking-widest uppercase text-sm">Falha ao carregar catálogo de produtos.</p>
-      </div>
-    );
+  let products: ProductSummaryDTO[];
+  try {
+    products = await getProducts({ targetAudience, category, collectionId, onSale, sort, size });
+  } catch (error) {
+    if (isCatalogUnavailable(error)) return <ColdStartNotice />;
+    throw error;
   }
 
   if (products.length === 0) {

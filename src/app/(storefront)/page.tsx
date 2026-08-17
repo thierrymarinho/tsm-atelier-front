@@ -5,13 +5,18 @@ import {
   getCollectionByPosition,
   getCollectionsByPosition,
   getProducts,
+  withCatalogFallback,
 } from "@/lib/api/server";
 
+// A home é prerenderizada e revalidada a cada 5 minutos, então o visitante
+// recebe a cópia em cache enquanto o backend acorda — ele nunca vê o cold
+// start. Degradar em vez de lançar também impede que um backend fora derrube o
+// build de produção.
 export default async function HomePage() {
   const [heroCollection, newArrivals, secondaryCollections] = await Promise.all([
-    getCollectionByPosition("HOME_MAIN"),
-    getProducts({ targetAudience: "WOMEN", sort: "createdAt,desc", size: 8 }),
-    getCollectionsByPosition("HOME_SECONDARY"),
+    withCatalogFallback(getCollectionByPosition("HOME_MAIN"), null),
+    withCatalogFallback(getProducts({ targetAudience: "WOMEN", sort: "createdAt,desc", size: 8 }), []),
+    withCatalogFallback(getCollectionsByPosition("HOME_SECONDARY"), []),
   ]);
 
   return (

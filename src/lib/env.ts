@@ -15,4 +15,14 @@ export const serverEnv = {
   get API_URL(): string {
     return required('SPRING_BOOT_API_URL');
   },
+
+  get SITE_URL(): string {
+    const explicit = process.env.SITE_URL;
+    if (explicit) return explicit.replace(/\/+$/, '');
+
+    const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+    if (vercel) return `https://${vercel}`;
+
+    return 'http://localhost:3000';
+  },
 } as const;
