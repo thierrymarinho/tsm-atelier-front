@@ -105,6 +105,45 @@ export async function getProductBySlug(slug: string): Promise<ProductResponseDTO
   );
 }
 
+const SITEMAP_PAGE_SIZE = 100;
+const SITEMAP_MAX_PAGES = 50;
+
+export async function getAllCollections(): Promise<CollectionResponseDTO[]> {
+  const data = await catalogFetch<CollectionResponseDTO[]>('/v1/catalog/collections', {
+    tags: ['collections'],
+  });
+  return Array.isArray(data) ? data : [];
+}
+
+export async function getAllProductSlugs(): Promise<string[]> {
+  const slugs: string[] = [];
+
+  for (let page = 0; page < SITEMAP_MAX_PAGES; page += 1) {
+    const data = await catalogFetch<PaginatedResponse<ProductSummaryDTO>>(
+      `/v1/catalog/products${buildQuery({ page, size: SITEMAP_PAGE_SIZE, sort: 'createdAt,desc' })}`,
+      { tags: ['products'] },
+    );
+
+    if (!data?.content?.length) break;
+
+    slugs.push(...data.content.map((product) => product.slug));
+
+    const totalPages = data.page?.totalPages ?? 1;
+    if (page + 1 >= totalPages) break;
+
+    // O laço é limitado para que um bug de paginação não trave o build. Depois
+    // do teto o sitemap sairia curto em silêncio, então avisa no log.
+    if (page + 1 === SITEMAP_MAX_PAGES) {
+      console.warn(
+        `[catalog] sitemap capped at ${SITEMAP_MAX_PAGES * SITEMAP_PAGE_SIZE} products ` +
+          `(${totalPages} pages available) — raise SITEMAP_MAX_PAGES.`,
+      );
+    }
+  }
+
+  return slugs;
+}
+
 export async function getProducts(params: {
   targetAudience?: TargetAudience;
   category?: string;
