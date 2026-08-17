@@ -1,11 +1,28 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { CatalogGrid, CatalogGridSkeleton } from "@/components/domain/CatalogGrid";
-import { getCollectionBySlug } from "@/lib/api/server";
+import { getCollectionBySlug, isCatalogUnavailable } from "@/lib/api/server";
+import { ColdStartNotice } from "@/components/domain/ColdStartNotice";
 import { TargetAudience } from "@/lib/types/api";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
+}
+
+// Mesmo motivo da página de produto: manter o aviso de cold start fora do índice.
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+
+  if (slug === "novidades-mulheres" || slug === "novidades-homens") return {};
+
+  try {
+    await getCollectionBySlug(slug);
+    return {};
+  } catch (error) {
+    if (isCatalogUnavailable(error)) return { robots: { index: false } };
+    throw error;
+  }
 }
 
 export default async function CollectionPage({ params }: PageProps) {
@@ -25,7 +42,13 @@ export default async function CollectionPage({ params }: PageProps) {
     targetAudience = "MEN";
     isNovidades = true;
   } else {
-    const collectionData = await getCollectionBySlug(slug);
+    let collectionData: Awaited<ReturnType<typeof getCollectionBySlug>>;
+    try {
+      collectionData = await getCollectionBySlug(slug);
+    } catch (error) {
+      if (isCatalogUnavailable(error)) return <ColdStartNotice />;
+      throw error;
+    }
 
     if (!collectionData || !collectionData.active) {
       notFound();
