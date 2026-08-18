@@ -10,11 +10,12 @@ interface NavItem {
   label: string;
   icon: typeof LayoutDashboard;
   exact?: boolean;
+  ordersOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { href: "/admin/orders", label: "Pedidos", icon: Receipt },
+  { href: "/admin/orders", label: "Pedidos", icon: Receipt, ordersOnly: true },
   { href: "/admin/products", label: "Produtos", icon: Shirt },
   { href: "/admin/collections", label: "Coleções", icon: Layers },
   { href: "/admin/stock", label: "Estoque", icon: Boxes },
@@ -28,7 +29,9 @@ function isActive(pathname: string | null, item: NavItem): boolean {
 
 export function AdminSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, logout, canWrite, canSeeOrders } = useAuth();
+
+  const items = NAV_ITEMS.filter((item) => !item.ordersOnly || canSeeOrders);
 
   return (
     <div className="flex flex-col h-full">
@@ -44,7 +47,7 @@ export function AdminSidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav className="flex-1 py-4" aria-label="Seções do painel">
-        {NAV_ITEMS.map((item) => {
+        {items.map((item) => {
           const active = isActive(pathname, item);
           const Icon = item.icon;
           return (
@@ -71,6 +74,11 @@ export function AdminSidebar({ onNavigate }: { onNavigate?: () => void }) {
           <div className="px-6 pb-3">
             <p className="text-sm text-foreground truncate">{user.name || user.firstName}</p>
             <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+            {!canWrite && (
+              <p className="mt-1 text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+                Somente leitura
+              </p>
+            )}
           </div>
         )}
 

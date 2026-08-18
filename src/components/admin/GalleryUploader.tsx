@@ -14,6 +14,7 @@ interface GalleryUploaderProps {
   value: string[];
   onChange: (urls: string[]) => void;
   folder?: UploadFolder;
+  readOnly?: boolean;
 }
 
 interface QueueItem {
@@ -23,7 +24,12 @@ interface QueueItem {
   error?: string;
 }
 
-export function GalleryUploader({ value, onChange, folder = "products" }: GalleryUploaderProps) {
+export function GalleryUploader({
+  value,
+  onChange,
+  folder = "products",
+  readOnly = false,
+}: GalleryUploaderProps) {
   const inputId = useId();
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const seq = useRef(0);
@@ -75,6 +81,37 @@ export function GalleryUploader({ value, onChange, folder = "products" }: Galler
 
   const replaceAt = (index: number, url: string) =>
     onChange(value.map((current, i) => (i === index ? url : current)));
+
+  if (readOnly) {
+    return (
+      <div className="flex flex-col gap-2">
+        <span className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+          Galeria ({value.length})
+        </span>
+
+        {value.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Nenhuma imagem além da capa e do hover.</p>
+        ) : (
+          <ul className="flex flex-wrap gap-2">
+            {value.map((url, index) => (
+              <li
+                key={`${url}-${index}`}
+                className="relative w-12 h-16 bg-muted/40 flex-shrink-0 overflow-hidden"
+              >
+                {url ? (
+                  <Image src={url} alt="" fill sizes="48px" className="object-cover" />
+                ) : (
+                  <span className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                    <ImagePlus className="w-4 h-4" strokeWidth={1.5} />
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2">

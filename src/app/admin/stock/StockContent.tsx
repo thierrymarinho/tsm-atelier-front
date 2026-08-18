@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { AlertTriangle, ChevronLeft, ChevronRight, Loader2, RotateCw, Search } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { useAuth } from "@/lib/context/AuthContext";
 import { StockAdjustForm } from "@/components/admin/StockAdjustForm";
 import { ProductStockPanel } from "@/components/admin/ProductStockPanel";
 import { SkuHistoryToggle, SkuStockHistory } from "@/components/admin/SkuStockHistory";
@@ -41,6 +42,8 @@ function describeAge(ms: number): string {
 }
 
 export function StockContent() {
+  const { canWrite } = useAuth();
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -182,8 +185,9 @@ export function StockContent() {
         </div>
 
         <p className="mt-2 text-[11px] text-muted-foreground max-w-xl leading-relaxed">
-          Abra um produto para ver e ajustar o estoque de cada cor e tamanho, mesmo os que estão acima
-          do limiar de alerta.
+          {canWrite
+            ? "Abra um produto para ver e ajustar o estoque de cada cor e tamanho, mesmo os que estão acima do limiar de alerta."
+            : "Abra um produto para ver o estoque de cada cor e tamanho, mesmo os que estão acima do limiar de alerta."}
         </p>
 
         {open !== undefined && (
@@ -319,7 +323,7 @@ export function StockContent() {
                       <th className="py-2 pr-4 font-normal">Tam.</th>
                       <th className="py-2 pr-4 font-normal">SKU</th>
                       <th className="py-2 pr-4 font-normal">Estoque</th>
-                      <th className="py-2 font-normal">Ajustar</th>
+                      {canWrite && <th className="py-2 font-normal">Ajustar</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -358,20 +362,22 @@ export function StockContent() {
                                 onToggle={() => setHistoryFor(showHistory ? null : sku.skuId)}
                               />
                             </td>
-                            <td className="py-3">
-                              <StockAdjustForm
-                                skuId={sku.skuId}
-                                stockQuantity={current}
-                                version={version}
-                                onApplied={onAlertApplied}
-                                onStale={reload}
-                              />
-                            </td>
+                            {canWrite && (
+                              <td className="py-3">
+                                <StockAdjustForm
+                                  skuId={sku.skuId}
+                                  stockQuantity={current}
+                                  version={version}
+                                  onApplied={onAlertApplied}
+                                  onStale={reload}
+                                />
+                              </td>
+                            )}
                           </tr>
 
                           {showHistory && (
                             <tr className="border-b border-muted/60">
-                              <td colSpan={6} className="pb-4 pt-1">
+                              <td colSpan={canWrite ? 6 : 5} className="pb-4 pt-1">
                                 <SkuStockHistory skuId={sku.skuId} />
                               </td>
                             </tr>
@@ -423,15 +429,17 @@ export function StockContent() {
                         </div>
                       </div>
 
-                      <div className="mt-3 pt-3 border-t border-muted/60">
-                        <StockAdjustForm
-                          skuId={sku.skuId}
-                          stockQuantity={current}
-                          version={version}
-                          onApplied={onAlertApplied}
-                          onStale={reload}
-                        />
-                      </div>
+                      {canWrite && (
+                        <div className="mt-3 pt-3 border-t border-muted/60">
+                          <StockAdjustForm
+                            skuId={sku.skuId}
+                            stockQuantity={current}
+                            version={version}
+                            onApplied={onAlertApplied}
+                            onStale={reload}
+                          />
+                        </div>
+                      )}
 
                       {showHistory && (
                         <div className="mt-3">

@@ -7,11 +7,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Plus, Trash2, X } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { revalidateProducts } from "@/lib/api/revalidate";
+import { useAuth } from "@/lib/context/AuthContext";
 import { useToast } from "@/lib/context/ToastContext";
 import { formatAdminError, readFieldErrors } from "@/lib/admin/errors";
 import { translateCategory, translateTargetAudience } from "@/lib/utils/translations";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
-import { FormSection } from "@/components/admin/FormSection";
+import { FieldLock, FormSection } from "@/components/admin/FormSection";
 import { ProductColorCard } from "@/components/admin/ProductColorCard";
 import {
   PRODUCT_FORM_SECTIONS,
@@ -64,6 +65,9 @@ interface ProductFormProps {
 }
 
 export function ProductForm({ productId }: ProductFormProps) {
+  const { canWrite } = useAuth();
+  const readOnly = !canWrite;
+
   const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -262,17 +266,24 @@ export function ProductForm({ productId }: ProductFormProps) {
   const stateOf = (id: SectionId) => sectionState(id, draft, errors);
 
   return (
-    <div className="pb-28">
+    <div className={readOnly ? "" : "pb-28"}>
       <div className="flex flex-col gap-6 min-w-0">
         {isGone && (
           <div className="border border-red-200 bg-red-50 p-4">
             <p className="text-sm text-red-800 leading-relaxed">
-              Este produto está removido. Restaure-o pela listagem antes de editar — salvar agora
-              devolve <span className="font-mono">404</span>.
+              {readOnly ? (
+                "Este produto está removido: ele sai do catálogo e da vitrine, e continua aqui só para consulta."
+              ) : (
+                <>
+                  Este produto está removido. Restaure-o pela listagem antes de editar — salvar agora
+                  devolve <span className="font-mono">404</span>.
+                </>
+              )}
             </p>
           </div>
         )}
 
+        <FieldLock locked={readOnly}>
         <FormSection spec={SPEC.identificacao} state={stateOf("identificacao")}>
           <div className="flex flex-col gap-4">
             <label className="flex flex-col gap-1.5">
@@ -432,6 +443,7 @@ export function ProductForm({ productId }: ProductFormProps) {
             value={draft.fabricCompositions}
             onChange={(fabricCompositions) => patch({ fabricCompositions })}
             error={errors.fabricCompositions}
+            readOnly={readOnly}
           />
 
           <div className="mt-6 pt-6 border-t border-muted">
@@ -442,24 +454,28 @@ export function ProductForm({ productId }: ProductFormProps) {
           </div>
         </FormSection>
 
+        </FieldLock>
+
         <FormSection spec={SPEC.cores} state={stateOf("cores")}>
           <div className="flex flex-col gap-3">
             <div className="flex items-baseline justify-between gap-4">
               <span className={SECTION_TITLE}>
                 {liveColors.length} {liveColors.length === 1 ? "cor" : "cores"}
               </span>
-              <button
-                type="button"
-                onClick={() => {
-                  const color = emptyColor();
-                  setDraft((current) => ({ ...current, colors: [...current.colors, color] }));
-                  setOpenColors((current) => new Set(current).add(color.uid));
-                }}
-                className="flex items-center gap-1.5 text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" strokeWidth={1.5} />
-                Nova cor
-              </button>
+              {canWrite && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const color = emptyColor();
+                    setDraft((current) => ({ ...current, colors: [...current.colors, color] }));
+                    setOpenColors((current) => new Set(current).add(color.uid));
+                  }}
+                  className="flex items-center gap-1.5 text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  Nova cor
+                </button>
+              )}
             </div>
 
             {errors.colors && <p className="text-xs text-red-600">{errors.colors}</p>}
@@ -493,12 +509,13 @@ export function ProductForm({ productId }: ProductFormProps) {
                 }}
                 canRemove={liveColors.length > 1 || color.id === undefined}
                 errors={errors}
+                readOnly={readOnly}
               />
             ))}
           </div>
         </FormSection>
 
-        {isEdit && !isGone && (
+        {isEdit && !isGone && canWrite && (
           <section className="border-t border-muted pt-6">
             <button
               type="button"
@@ -516,49 +533,63 @@ export function ProductForm({ productId }: ProductFormProps) {
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 lg:left-60 z-40 border-t border-muted bg-background/95 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-col gap-2">
-          {serverError && (
-            <div className="flex items-start gap-2 text-xs text-red-600">
-              <p className="flex-1 leading-relaxed">{serverError}</p>
-              <button
-                type="button"
-                onClick={() => setServerError(null)}
-                aria-label="Dispensar o erro"
-                className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="w-3.5 h-3.5" strokeWidth={1.5} />
-              </button>
-            </div>
-          )}
+      {readOnly && (
+        <div className="mt-8 border-t border-muted pt-5">
+          <Link
+            href="/admin/products"
+            className="flex items-center gap-1.5 text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.5} />
+            Voltar para a listagem
+          </Link>
+        </div>
+      )}
 
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <span className="text-[11px] text-muted-foreground">
-              {isDirty ? "Alterações não salvas" : isEdit ? "Tudo salvo" : "Novo produto"}
-            </span>
+      {canWrite && (
+        <div className="fixed bottom-0 left-0 right-0 lg:left-60 z-40 border-t border-muted bg-background/95 backdrop-blur-sm">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-col gap-2">
+            {serverError && (
+              <div className="flex items-start gap-2 text-xs text-red-600">
+                <p className="flex-1 leading-relaxed">{serverError}</p>
+                <button
+                  type="button"
+                  onClick={() => setServerError(null)}
+                  aria-label="Dispensar o erro"
+                  className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+                </button>
+              </div>
+            )}
 
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={cancel}
-                className="flex items-center gap-1.5 px-3 h-9 text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.5} />
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={submit}
-                disabled={save.isPending || isGone}
-                className="flex items-center gap-2 px-5 h-9 bg-foreground text-background text-xs font-semibold tracking-[0.15em] uppercase hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                {save.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                {isEdit ? "Salvar" : "Criar produto"}
-              </button>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <span className="text-[11px] text-muted-foreground">
+                {isDirty ? "Alterações não salvas" : isEdit ? "Tudo salvo" : "Novo produto"}
+              </span>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={cancel}
+                  className="flex items-center gap-1.5 px-3 h-9 text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={submit}
+                  disabled={save.isPending || isGone}
+                  className="flex items-center gap-2 px-5 h-9 bg-foreground text-background text-xs font-semibold tracking-[0.15em] uppercase hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  {save.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  {isEdit ? "Salvar" : "Criar produto"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       <ConfirmDialog
         open={pendingRemovals !== null}
@@ -610,10 +641,12 @@ function CompositionEditor({
   value,
   onChange,
   error,
+  readOnly,
 }: {
   value: ProductDraft["fabricCompositions"];
   onChange: (next: ProductDraft["fabricCompositions"]) => void;
   error?: string;
+  readOnly: boolean;
 }) {
   const {
     data: materials,
@@ -704,7 +737,7 @@ function CompositionEditor({
             />
             <span className="text-sm text-muted-foreground">%</span>
 
-            {canFill && (
+            {canFill && !readOnly && (
               <button
                 type="button"
                 onClick={() => patchAt(index, { percentage: String(remaining) })}
@@ -714,14 +747,16 @@ function CompositionEditor({
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={() => onChange(value.filter((_, i) => i !== index))}
-              aria-label="Remover material"
-              className="p-1.5 text-muted-foreground hover:text-red-600 transition-colors"
-            >
-              <Trash2 className="w-4 h-4" strokeWidth={1.5} />
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={() => onChange(value.filter((_, i) => i !== index))}
+                aria-label="Remover material"
+                className="p-1.5 text-muted-foreground hover:text-red-600 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            )}
           </div>
         );
       })}
@@ -738,19 +773,23 @@ function CompositionEditor({
       ) : (
         value.length === 0 && (
           <span className="text-[10px] text-muted-foreground">
-            Opcional — mas se preenchida, tem que somar exatamente 100%, em números inteiros.
+            {readOnly
+              ? "Este produto não tem composição informada."
+              : "Opcional — mas se preenchida, tem que somar exatamente 100%, em números inteiros."}
           </span>
         )
       )}
 
-      <button
-        type="button"
-        onClick={() => onChange([...value, { uid: nextUid("f"), material: "", percentage: "" }])}
-        className="self-start flex items-center gap-1 mt-1 px-2 py-1.5 -ml-2 text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <Plus className="w-3 h-3" strokeWidth={1.5} />
-        Material
-      </button>
+      {!readOnly && (
+        <button
+          type="button"
+          onClick={() => onChange([...value, { uid: nextUid("f"), material: "", percentage: "" }])}
+          className="self-start flex items-center gap-1 mt-1 px-2 py-1.5 -ml-2 text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Plus className="w-3 h-3" strokeWidth={1.5} />
+          Material
+        </button>
+      )}
     </div>
   );
 }

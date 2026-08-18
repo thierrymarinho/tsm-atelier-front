@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ArrowRight, Loader2, RotateCw } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { useAuth } from "@/lib/context/AuthContext";
 import { formatBRL } from "@/lib/utils/format";
 import { translateOrderStatus } from "@/lib/admin/order-status";
 import { DEFAULT_THRESHOLD } from "@/lib/admin/stock-filters";
@@ -37,6 +38,8 @@ function describeAge(ms: number): string {
 const SECTION_TITLE = "text-xs text-muted-foreground uppercase tracking-widest";
 
 export function DashboardContent() {
+  const { canSeeOrders } = useAuth();
+
   const { data, isLoading, isError, isFetching, dataUpdatedAt, refetch } = useQuery({
     queryKey: ["admin", "dashboard", DEFAULT_THRESHOLD, 0],
     queryFn: async ({ signal }) => {
@@ -137,20 +140,33 @@ export function DashboardContent() {
           </div>
 
           <div className="mt-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-            {STATUS_ORDER.map(({ status, actionable }) => (
-              <Link
-                key={status}
-                href={`/admin/orders?status=${status}`}
-                className={`border p-4 transition-colors hover:border-foreground ${
-                  actionable ? "border-foreground/40 bg-muted/30" : "border-muted"
-                }`}
-              >
-                <p className="font-serif text-2xl text-foreground">{data.ordersByStatus[status]}</p>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.15em] text-muted-foreground leading-tight">
-                  {translateOrderStatus(status)}
-                </p>
-              </Link>
-            ))}
+            {STATUS_ORDER.map(({ status, actionable }) => {
+              const box = `border p-4 ${
+                actionable ? "border-foreground/40 bg-muted/30" : "border-muted"
+              }`;
+              const content = (
+                <>
+                  <p className="font-serif text-2xl text-foreground">{data.ordersByStatus[status]}</p>
+                  <p className="mt-1 text-[10px] uppercase tracking-[0.15em] text-muted-foreground leading-tight">
+                    {translateOrderStatus(status)}
+                  </p>
+                </>
+              );
+
+              return canSeeOrders ? (
+                <Link
+                  key={status}
+                  href={`/admin/orders?status=${status}`}
+                  className={`${box} transition-colors hover:border-foreground`}
+                >
+                  {content}
+                </Link>
+              ) : (
+                <div key={status} className={box}>
+                  {content}
+                </div>
+              );
+            })}
           </div>
         </section>
 

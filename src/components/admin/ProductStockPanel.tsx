@@ -4,6 +4,7 @@ import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { ApiError, apiClient } from "@/lib/api/client";
+import { useAuth } from "@/lib/context/AuthContext";
 import { StockAdjustForm } from "@/components/admin/StockAdjustForm";
 import { SkuHistoryToggle, SkuStockHistory } from "@/components/admin/SkuStockHistory";
 import type {
@@ -25,6 +26,7 @@ export function ProductStockPanel({
   defaultOpen = false,
   onApplied,
 }: ProductStockPanelProps) {
+  const { canWrite } = useAuth();
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   const { data, error, isLoading, isError, dataUpdatedAt, refetch } = useQuery({
@@ -149,7 +151,7 @@ export function ProductStockPanel({
                           <th className="py-2 pr-4 font-normal">Tam.</th>
                           <th className="py-2 pr-4 font-normal">SKU</th>
                           <th className="py-2 pr-4 font-normal">Estoque</th>
-                          <th className="py-2 font-normal">Ajustar</th>
+                          {canWrite && <th className="py-2 font-normal">Ajustar</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -186,20 +188,22 @@ export function ProductStockPanel({
                                     onToggle={() => setHistoryFor(showHistory ? null : sku.id)}
                                   />
                                 </td>
-                                <td className="py-3">
-                                  <StockAdjustForm
-                                    skuId={sku.id}
-                                    stockQuantity={current}
-                                    version={version}
-                                    onApplied={handleApplied}
-                                    onStale={() => void refetch()}
-                                  />
-                                </td>
+                                {canWrite && (
+                                  <td className="py-3">
+                                    <StockAdjustForm
+                                      skuId={sku.id}
+                                      stockQuantity={current}
+                                      version={version}
+                                      onApplied={handleApplied}
+                                      onStale={() => void refetch()}
+                                    />
+                                  </td>
+                                )}
                               </tr>
 
                               {showHistory && (
                                 <tr className="border-b border-muted/40">
-                                  <td colSpan={4} className="pb-4 pt-1">
+                                  <td colSpan={canWrite ? 4 : 3} className="pb-4 pt-1">
                                     <SkuStockHistory skuId={sku.id} />
                                   </td>
                                 </tr>
@@ -250,15 +254,17 @@ export function ProductStockPanel({
                             </div>
                           </div>
 
-                          <div className="mt-3 pt-3 border-t border-muted/60">
-                            <StockAdjustForm
-                              skuId={sku.id}
-                              stockQuantity={current}
-                              version={version}
-                              onApplied={handleApplied}
-                              onStale={() => void refetch()}
-                            />
-                          </div>
+                          {canWrite && (
+                            <div className="mt-3 pt-3 border-t border-muted/60">
+                              <StockAdjustForm
+                                skuId={sku.id}
+                                stockQuantity={current}
+                                version={version}
+                                onApplied={handleApplied}
+                                onStale={() => void refetch()}
+                              />
+                            </div>
+                          )}
 
                           {showHistory && (
                             <div className="mt-3">

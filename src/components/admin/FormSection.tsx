@@ -33,6 +33,21 @@ function StateMark({ state }: { state: SectionState }) {
   );
 }
 
+export function FieldLock({
+  locked,
+  children,
+}: {
+  locked: boolean;
+  children: React.ReactNode;
+}) {
+  if (!locked) return <>{children}</>;
+  return (
+    <fieldset disabled className="contents">
+      {children}
+    </fieldset>
+  );
+}
+
 export function FormSection({
   spec,
   state,

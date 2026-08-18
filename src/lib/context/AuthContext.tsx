@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { apiClient, onSessionExpired } from "@/lib/api/client";
 import { useToast } from "@/lib/context/ToastContext";
 import { CART_STORAGE_KEY, readStoredCart } from "@/lib/cart-storage";
+import { canOpenAdmin, canSeeOrders, canWrite } from "@/lib/auth/roles";
 import {
   UserResponseDTO,
   LoginRequestDTO,
@@ -16,6 +17,9 @@ interface AuthContextType {
   user: UserResponseDTO | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isAdminArea: boolean;
+  canWrite: boolean;
+  canSeeOrders: boolean;
   login: (data: LoginRequestDTO) => Promise<void>;
   register: (data: RegisterRequestDTO) => Promise<RegisterResponseDTO>;
   verifyEmail: (token: string) => Promise<void>;
@@ -114,6 +118,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isAuthenticated: !!user,
         isLoading,
+        isAdminArea: canOpenAdmin(user),
+        canWrite: canWrite(user),
+        canSeeOrders: canSeeOrders(user),
         login,
         register,
         verifyEmail,

@@ -18,6 +18,7 @@ interface ImageUploadFieldProps {
   folder?: UploadFolder;
   required?: boolean;
   error?: string;
+  readOnly?: boolean;
 }
 
 export function ImageUploadField({
@@ -28,6 +29,7 @@ export function ImageUploadField({
   folder = "products",
   required,
   error,
+  readOnly = false,
 }: ImageUploadFieldProps) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -64,6 +66,32 @@ export function ImageUploadField({
   };
 
   const message = error ?? uploadError;
+
+  if (readOnly) {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">{label}</span>
+
+        <div className="flex items-center gap-3 border border-muted p-2">
+          <div className="relative w-16 h-20 bg-muted/40 flex-shrink-0 overflow-hidden">
+            {value ? (
+              <Image src={value} alt="" fill sizes="64px" className="object-cover" />
+            ) : (
+              <span className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                <ImagePlus className="w-5 h-5" strokeWidth={1.5} />
+              </span>
+            )}
+          </div>
+
+          <span className="min-w-0 flex-1 text-xs font-mono text-muted-foreground break-all line-clamp-3">
+            {value || "sem imagem"}
+          </span>
+        </div>
+
+        {hint && <p className="text-[10px] text-muted-foreground leading-snug">{hint}</p>}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-1.5">
