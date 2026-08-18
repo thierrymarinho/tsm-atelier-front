@@ -7,12 +7,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft, ExternalLink, Loader2, RotateCcw, Trash2, X } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { revalidateCollections, revalidateProducts } from "@/lib/api/revalidate";
+import { useAuth } from "@/lib/context/AuthContext";
 import { useToast } from "@/lib/context/ToastContext";
 import { formatAdminError, readFieldErrors, readProblem } from "@/lib/admin/errors";
 import { translateTargetAudience } from "@/lib/utils/translations";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { CollectionHistory } from "@/components/admin/CollectionHistory";
-import { FormSection } from "@/components/admin/FormSection";
+import { FieldLock, FormSection } from "@/components/admin/FormSection";
 import { ImageUploadField } from "@/components/admin/ImageUploadField";
 import {
   COLLECTION_FORM_SECTIONS,
@@ -60,6 +61,9 @@ interface CollectionFormProps {
 }
 
 export function CollectionForm({ collectionId }: CollectionFormProps) {
+  const { canWrite } = useAuth();
+  const readOnly = !canWrite;
+
   const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -314,8 +318,9 @@ export function CollectionForm({ collectionId }: CollectionFormProps) {
   );
 
   return (
-    <div className="pb-28">
+    <div className={readOnly ? "" : "pb-28"}>
       <div className="flex flex-col gap-6 min-w-0">
+        <FieldLock locked={readOnly}>
         <FormSection spec={SPEC.identificacao} state={stateOf("identificacao")}>
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-[1fr_200px] gap-4">
@@ -404,6 +409,7 @@ export function CollectionForm({ collectionId }: CollectionFormProps) {
         <FormSection spec={SPEC.imagens} state={stateOf("imagens")}>
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
             <ImageUploadField
+              readOnly={readOnly}
               label="Paisagem"
               hint="A capa da home no desktop. Larga; o texto entra por cima."
               value={draft.heroImageUrl}
@@ -412,6 +418,7 @@ export function CollectionForm({ collectionId }: CollectionFormProps) {
               error={errors.heroImageUrl}
             />
             <ImageUploadField
+              readOnly={readOnly}
               label="Retrato"
               hint="Os blocos da home, a capa no celular e os cartões do menu."
               value={draft.portraitImageUrl}
@@ -420,6 +427,7 @@ export function CollectionForm({ collectionId }: CollectionFormProps) {
               error={errors.portraitImageUrl}
             />
             <ImageUploadField
+              readOnly={readOnly}
               label="Quadrada"
               hint="O cartão em destaque do menu principal."
               value={draft.squareImageUrl}
@@ -565,7 +573,9 @@ export function CollectionForm({ collectionId }: CollectionFormProps) {
           </div>
         </FormSection>
 
-        {restorableId !== undefined && (
+        </FieldLock>
+
+        {canWrite && restorableId !== undefined && (
           <div className="border border-foreground/40 bg-muted/30 p-4">
             <p className="text-sm text-foreground leading-relaxed">
               Existe uma coleção <strong className="font-medium">removida</strong> com este nome e
@@ -612,7 +622,7 @@ export function CollectionForm({ collectionId }: CollectionFormProps) {
           </section>
         )}
 
-        {isEdit && (
+        {isEdit && canWrite && (
           <section className="border-t border-muted pt-6">
             {!showDelete ? (
               <button
@@ -699,49 +709,63 @@ export function CollectionForm({ collectionId }: CollectionFormProps) {
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 lg:left-60 z-40 border-t border-muted bg-background/95 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-col gap-2">
-          {serverError && (
-            <div className="flex items-start gap-2 text-xs text-red-600">
-              <p className="flex-1 leading-relaxed">{serverError}</p>
-              <button
-                type="button"
-                onClick={() => setServerError(null)}
-                aria-label="Dispensar o erro"
-                className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="w-3.5 h-3.5" strokeWidth={1.5} />
-              </button>
-            </div>
-          )}
+      {readOnly && (
+        <div className="mt-8 border-t border-muted pt-5">
+          <Link
+            href="/admin/collections"
+            className="flex items-center gap-1.5 text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.5} />
+            Voltar para a listagem
+          </Link>
+        </div>
+      )}
 
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <span className="text-[11px] text-muted-foreground">
-              {isDirty ? "Alterações não salvas" : isEdit ? "Tudo salvo" : "Nova coleção"}
-            </span>
+      {canWrite && (
+        <div className="fixed bottom-0 left-0 right-0 lg:left-60 z-40 border-t border-muted bg-background/95 backdrop-blur-sm">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-col gap-2">
+            {serverError && (
+              <div className="flex items-start gap-2 text-xs text-red-600">
+                <p className="flex-1 leading-relaxed">{serverError}</p>
+                <button
+                  type="button"
+                  onClick={() => setServerError(null)}
+                  aria-label="Dispensar o erro"
+                  className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+                </button>
+              </div>
+            )}
 
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={cancel}
-                className="flex items-center gap-1.5 px-3 h-9 text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.5} />
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={submit}
-                disabled={save.isPending}
-                className="flex items-center gap-2 px-5 h-9 bg-foreground text-background text-xs font-semibold tracking-[0.15em] uppercase hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                {save.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                {isEdit ? "Salvar" : "Criar coleção"}
-              </button>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <span className="text-[11px] text-muted-foreground">
+                {isDirty ? "Alterações não salvas" : isEdit ? "Tudo salvo" : "Nova coleção"}
+              </span>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={cancel}
+                  className="flex items-center gap-1.5 px-3 h-9 text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={submit}
+                  disabled={save.isPending}
+                  className="flex items-center gap-2 px-5 h-9 bg-foreground text-background text-xs font-semibold tracking-[0.15em] uppercase hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  {save.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  {isEdit ? "Salvar" : "Criar coleção"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       <ConfirmDialog
         open={confirmDelete}

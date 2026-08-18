@@ -143,8 +143,8 @@ export function Header() {
   const carouselRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, user, isLoading: isAuthLoading } = useAuth();
-  const isAdmin = !isAuthLoading && user?.role === "ADMIN";
+  const { isAuthenticated, user, isLoading: isAuthLoading, isAdminArea } = useAuth();
+  const isAdmin = !isAuthLoading && isAdminArea;
   const { cartCount, isCartOpen, setIsCartOpen } = useCart();
   const [isHovered, setIsHovered] = useState(false);
   const [canHover, setCanHover] = useState(false);

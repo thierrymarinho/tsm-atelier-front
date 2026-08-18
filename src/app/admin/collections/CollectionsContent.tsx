@@ -3,8 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, History, ImageOff, Loader2, Pencil, Plus, Shirt } from "lucide-react";
+import { ExternalLink, Eye, History, ImageOff, Loader2, Pencil, Plus, Shirt } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { useAuth } from "@/lib/context/AuthContext";
 import { translateTargetAudience } from "@/lib/utils/translations";
 import { positionSpec, showcaseSlots, sortCollections } from "@/lib/admin/collection-form";
 import type { AdminCollectionResponse } from "@/lib/types/admin";
@@ -18,6 +19,8 @@ function thumbOf(collection: AdminCollectionResponse): string | null {
 }
 
 export function CollectionsContent() {
+  const { canWrite } = useAuth();
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ["admin", "collections"],
     queryFn: async ({ signal }) => {
@@ -99,13 +102,15 @@ export function CollectionsContent() {
             <span className="ml-2 normal-case tracking-normal">({collections.length})</span>
           </h2>
 
-          <Link
-            href="/admin/collections/new"
-            className="flex items-center gap-1.5 px-3 h-9 bg-foreground text-background text-[10px] font-semibold tracking-[0.15em] uppercase hover:bg-foreground/90 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" strokeWidth={2} />
-            Nova coleção
-          </Link>
+          {canWrite && (
+            <Link
+              href="/admin/collections/new"
+              className="flex items-center gap-1.5 px-3 h-9 bg-foreground text-background text-[10px] font-semibold tracking-[0.15em] uppercase hover:bg-foreground/90 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+              Nova coleção
+            </Link>
+          )}
         </div>
 
         <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed max-w-2xl">
@@ -240,14 +245,20 @@ function CollectionStatus({ collection }: { collection: AdminCollectionResponse 
 const ACTION = "flex items-center gap-1 py-1 text-[10px] uppercase tracking-widest transition-colors";
 
 function CollectionActions({ collection }: { collection: AdminCollectionResponse }) {
+  const { canWrite } = useAuth();
+
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
       <Link
         href={`/admin/collections/${collection.id}`}
         className={`${ACTION} text-foreground hover:underline`}
       >
-        <Pencil className="w-3 h-3" strokeWidth={1.5} />
-        Editar
+        {canWrite ? (
+          <Pencil className="w-3 h-3" strokeWidth={1.5} />
+        ) : (
+          <Eye className="w-3 h-3" strokeWidth={1.5} />
+        )}
+        {canWrite ? "Editar" : "Ver"}
       </Link>
 
       <Link

@@ -207,7 +207,7 @@ export interface VerifyEmailRequestDTO {
   token: string;
 }
 
-export type Role = 'CUSTOMER' | 'ADMIN';
+export type Role = 'CUSTOMER' | 'ADMIN' | 'ADMIN_VIEWER';
 
 export interface UserResponseDTO {
   id: string;

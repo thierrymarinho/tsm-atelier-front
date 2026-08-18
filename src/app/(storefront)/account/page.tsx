@@ -13,7 +13,7 @@ import { OrdersList } from "@/components/account/OrdersList";
 type Tab = "overview" | "orders" | "addresses";
 
 export default function AccountPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdminArea } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("overview");
 
@@ -95,7 +95,7 @@ export default function AccountPage() {
                   Dados Pessoais
                 </h2>
 
-                {user.role === "ADMIN" && (
+                {isAdminArea && (
                   <Link
                     href="/admin"
                     className="inline-flex items-center gap-2 border border-muted px-4 py-2 text-xs font-medium tracking-widest uppercase text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"

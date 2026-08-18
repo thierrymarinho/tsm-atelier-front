@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tansta
 import {
   ChevronLeft,
   ChevronRight,
+  Eye,
   ExternalLink,
   History,
   Loader2,
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { revalidateProducts } from "@/lib/api/revalidate";
+import { useAuth } from "@/lib/context/AuthContext";
 import { useToast } from "@/lib/context/ToastContext";
 import { formatAdminError } from "@/lib/admin/errors";
 import { formatBRL } from "@/lib/utils/format";
@@ -51,6 +53,7 @@ const LABEL = "text-[10px] uppercase tracking-[0.15em] text-muted-foreground";
 const THUMB = 48;
 
 export function ProductsContent() {
+  const { canWrite } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -336,13 +339,15 @@ export function ProductsContent() {
                 Limpar filtros ({activeCount})
               </button>
             )}
-            <Link
-              href="/admin/products/new"
-              className="flex items-center gap-1.5 px-3 h-9 bg-foreground text-background text-[10px] font-semibold tracking-[0.15em] uppercase hover:bg-foreground/90 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" strokeWidth={2} />
-              Novo produto
-            </Link>
+            {canWrite && (
+              <Link
+                href="/admin/products/new"
+                className="flex items-center gap-1.5 px-3 h-9 bg-foreground text-background text-[10px] font-semibold tracking-[0.15em] uppercase hover:bg-foreground/90 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+                Novo produto
+              </Link>
+            )}
           </div>
         </div>
 
@@ -641,13 +646,19 @@ function ProductActions({
   onRestore: () => void;
   isRestoring: boolean;
 }) {
+  const { canWrite } = useAuth();
   const isGone = product.deletedAt !== null;
   const ACTION =
     "flex items-center gap-1 py-1 text-[10px] uppercase tracking-widest transition-colors";
 
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-      {isGone ? (
+      {!canWrite ? (
+        <Link href={`/admin/products/${product.id}`} className={`${ACTION} text-foreground hover:underline`}>
+          <Eye className="w-3 h-3" strokeWidth={1.5} />
+          Ver
+        </Link>
+      ) : isGone ? (
         <button
           type="button"
           onClick={onRestore}

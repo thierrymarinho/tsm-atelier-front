@@ -26,7 +26,7 @@ export function formatAdminError(error: unknown, fallback = "Não foi possível 
     case 401:
       return "Sua sessão expirou. Entre novamente para continuar.";
     case 403:
-      return "Sem permissão para esta operação.";
+      return "Sem permissão para esta operação. A conta de demonstração é somente leitura.";
     case 404:
       return "Registro não encontrado. Ele pode ter sido removido.";
     case 409:

@@ -2,23 +2,44 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { Eye, Menu, X } from "lucide-react";
 import { useAuth } from "@/lib/context/AuthContext";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 
+const WRITE_ONLY_PREFIXES = ["/admin/orders", "/admin/products/new", "/admin/collections/new"];
+
+function ReadOnlyNotice() {
+  return (
+    <div className="mb-8 flex items-start gap-3 border border-muted bg-muted/30 px-4 py-3">
+      <Eye className="w-4 h-4 mt-0.5 flex-shrink-0 text-muted-foreground" strokeWidth={1.5} />
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        <span className="text-foreground">Conta de demonstração: somente leitura.</span> O painel
+        abre inteiro, mas nada aqui grava — criar, salvar, excluir, restaurar, ajustar estoque e
+        enviar imagem estão desligados, e pedidos ficam de fora por conterem dados de clientes.
+      </p>
+    </div>
+  );
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
+  const { isLoading, isAdminArea, canWrite } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const drawerTriggerRef = useRef<HTMLButtonElement>(null);
 
-  const isAdmin = user?.role === "ADMIN";
+  const needsWrite = WRITE_ONLY_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+
+  const isBlocked = isAdminArea && !canWrite && needsWrite;
 
   useEffect(() => {
-    if (!isLoading && !isAdmin) router.replace("/");
-  }, [isLoading, isAdmin, router]);
+    if (isLoading) return;
+    if (!isAdminArea) router.replace("/");
+    else if (isBlocked) router.replace("/admin");
+  }, [isLoading, isAdminArea, isBlocked, router]);
 
   const [syncedPath, setSyncedPath] = useState(pathname);
   if (syncedPath !== pathname) {
@@ -37,7 +58,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [isDrawerOpen]);
 
-  if (!isAdmin) return null;
+  if (!isAdminArea || isBlocked) return null;
 
   return (
     <div className="flex-1 flex flex-col lg:grid lg:grid-cols-[240px_1fr] lg:items-stretch">
@@ -92,7 +113,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </>
       )}
 
-      <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-10 py-8 lg:py-10">{children}</main>
+      <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-10 py-8 lg:py-10">
+        {!canWrite && <ReadOnlyNotice />}
+        {children}
+      </main>
     </div>
   );
 }

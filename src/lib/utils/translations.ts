@@ -34,6 +34,7 @@ export const translateRole = (role: Role): string => {
   const translations: Record<Role, string> = {
     CUSTOMER: "Cliente",
     ADMIN: "Administrador",
+    ADMIN_VIEWER: "Administrador (somente leitura)",
   };
   return translations[role] ?? role;
 };

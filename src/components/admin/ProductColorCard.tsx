@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ChevronDown, ChevronRight, Package, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { FieldLock } from "@/components/admin/FormSection";
 import { ImageUploadField } from "@/components/admin/ImageUploadField";
 import { GalleryUploader } from "@/components/admin/GalleryUploader";
 import { PRODUCT_SIZES, emptySku, type ColorDraft, type SkuDraft } from "@/lib/admin/product-form";
@@ -23,6 +24,7 @@ interface ProductColorCardProps {
   errors: Record<string, string>;
   productName: string;
   productId?: number;
+  readOnly?: boolean;
 }
 
 export function ProductColorCard({
@@ -36,6 +38,7 @@ export function ProductColorCard({
   errors,
   productName,
   productId,
+  readOnly = false,
 }: ProductColorCardProps) {
   const path = `colors.${index}`;
   const patch = (fields: Partial<ColorDraft>) => onChange({ ...color, ...fields });
@@ -94,7 +97,7 @@ export function ProductColorCard({
           )}
         </button>
 
-        {color.removed ? (
+        {readOnly ? null : color.removed ? (
           <button
             type="button"
             onClick={onToggleRemoved}
@@ -130,6 +133,7 @@ export function ProductColorCard({
 
       {isOpen && !color.removed && (
         <div className="px-4 pb-5 flex flex-col gap-5 border-t border-muted pt-4">
+          <FieldLock locked={readOnly}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="flex flex-col gap-1.5">
               <span className={LABEL}>Nome da cor *</span>
@@ -173,6 +177,7 @@ export function ProductColorCard({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <ImageUploadField
+              readOnly={readOnly}
               label="Capa"
               required
               hint="A imagem do card na vitrine e a primeira da galeria. Sem ela a peça não renderiza na loja."
@@ -180,6 +185,7 @@ export function ProductColorCard({
               onChange={(url) => patch({ coverImageUrl: url })}
             />
             <ImageUploadField
+              readOnly={readOnly}
               label="Hover"
               hint="Troca ao passar o mouse sobre o card. Opcional — sem ela o card fica estático."
               value={color.hoverImageUrl}
@@ -190,19 +196,22 @@ export function ProductColorCard({
           <GalleryUploader
             value={color.galleryImages}
             onChange={(urls) => patch({ galleryImages: urls })}
+            readOnly={readOnly}
           />
 
           <div className="flex flex-col gap-2">
             <div className="flex items-baseline justify-between gap-3">
               <span className={LABEL}>Tamanhos e SKUs *</span>
-              <button
-                type="button"
-                onClick={() => patch({ skus: [...color.skus, emptySku()] })}
-                className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Plus className="w-3 h-3" strokeWidth={1.5} />
-                Adicionar tamanho
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => patch({ skus: [...color.skus, emptySku()] })}
+                  className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Plus className="w-3 h-3" strokeWidth={1.5} />
+                  Adicionar tamanho
+                </button>
+              )}
             </div>
 
             {errors[`${path}.skus`] && (
@@ -315,7 +324,7 @@ export function ProductColorCard({
                         </td>
 
                         <td className="py-2">
-                          {sku.removed ? (
+                          {readOnly ? null : sku.removed ? (
                             <button
                               type="button"
                               onClick={() => patchSku(skuIndex, { removed: false })}
@@ -387,7 +396,7 @@ export function ProductColorCard({
                         )}
                       </div>
 
-                      {sku.removed ? (
+                      {readOnly ? null : sku.removed ? (
                         <button
                           type="button"
                           onClick={() => patchSku(skuIndex, { removed: false })}
@@ -481,6 +490,7 @@ export function ProductColorCard({
               </p>
             )}
           </div>
+          </FieldLock>
         </div>
       )}
     </div>
