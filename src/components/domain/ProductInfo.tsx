@@ -75,7 +75,7 @@ export function ProductInfo({
   };
 
   return (
-    <div className="flex flex-col w-full h-full pt-8 md:pt-32 pb-32 md:pb-16 px-4 sm:px-8 md:pl-12 md:pr-16 md:max-w-xl">
+    <div className="flex flex-col w-full h-full pt-8 md:pt-10 pb-32 md:pb-16 px-4 sm:px-8 md:pl-12 md:pr-16 md:max-w-xl">
 
       <h1 className="text-xl md:text-2xl tracking-wide text-foreground font-serif uppercase mb-2">
         {product.name}
