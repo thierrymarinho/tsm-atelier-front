@@ -19,7 +19,7 @@ export function NewArrivalsCarousel({ initialProducts }: NewArrivalsCarouselProp
   const [activeFilter, setActiveFilter] = useState<Filter>(DEFAULT_FILTER);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const { data: products, isLoading, isPlaceholderData } = useQuery({
+  const { data: products, isLoading, isError, isPlaceholderData } = useQuery({
     queryKey: ['products', 'new-arrivals', activeFilter],
     queryFn: async () => {
       const response = await apiClient.get<PaginatedResponse<ProductSummaryDTO>>('/v1/catalog/products', {
@@ -80,9 +80,18 @@ export function NewArrivalsCarousel({ initialProducts }: NewArrivalsCarouselProp
             <div className="w-full h-[400px] flex items-center justify-center">
               <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
+          ) : isError ? (
+            // Antes desta ramificação, uma falha caía no "nenhum produto" abaixo
+            // e o site afirmava que o catálogo estava vazio. O motivo não é
+            // explicado aqui de propósito: quem explica é a
+            // BackendUnavailableBanner, uma vez, em vez de cada seção da home
+            // repetir o mesmo texto.
+            <div className="w-full h-[400px] flex items-center justify-center bg-muted/10 text-muted-foreground text-sm tracking-widest uppercase">
+              Não foi possível carregar os lançamentos
+            </div>
           ) : !products || products.length === 0 ? (
             <div className="w-full h-[400px] flex items-center justify-center bg-muted/10 text-muted-foreground text-sm tracking-widest uppercase">
-              No products found
+              Nenhuma peça nova nesta seleção
             </div>
           ) : (
             <>

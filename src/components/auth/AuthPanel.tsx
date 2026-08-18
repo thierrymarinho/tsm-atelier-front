@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { X, Loader2, Eye, EyeOff, Mail } from "lucide-react";
 import { useAuth } from "@/lib/context/AuthContext";
+import { isBackendUnavailable } from "@/lib/api/client";
+import { BACKEND_UNAVAILABLE_MESSAGE } from "@/components/domain/BackendUnavailableBanner";
 import { ApiErrorResponse } from "@/lib/types/api";
 
 type AuthView = "login" | "register" | "pending";
@@ -176,6 +178,16 @@ export function AuthPanel({ isOpen, onClose }: AuthPanelProps) {
           title === TITLE_ACCOUNT_LOCKED
             ? `Muitas tentativas de senha incorreta. Sua conta está temporariamente bloqueada.${wait}`
             : `Muitas tentativas em pouco tempo.${wait || " Aguarde alguns minutos e tente novamente."}`,
+        offerResend: false,
+      };
+    }
+
+    // O `detail` do backend é ignorado aqui de propósito: num 500 o
+    // GlobalExceptionHandler devolve sempre "An unexpected error occurred",
+    // em inglês e sem informação, o que é pior do que dizer a verdade.
+    if (isBackendUnavailable(error)) {
+      return {
+        message: BACKEND_UNAVAILABLE_MESSAGE,
         offerResend: false,
       };
     }
