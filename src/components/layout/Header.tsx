@@ -24,22 +24,41 @@ import { useAuth } from "@/lib/context/AuthContext";
 import { useCart } from "@/lib/context/CartContext";
 import { AuthPanel } from "@/components/auth/AuthPanel";
 import { useAuthPanel } from "@/lib/context/AuthPanelContext";
+import { useHeaderScroll } from "@/lib/hooks/useHeaderScroll";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { translateCategory } from "@/lib/utils/translations";
 
 type MenuState = "main" | "novidades" | "feminino" | "masculino";
 
-const LIGHT_BACKGROUND_ROUTES = [
-  "/product/",
-  "/collections/",
-  "/catalog",
-  "/sale",
-  "/cart",
-  "/search",
-  "/account",
-];
+interface HeaderMode {
+  /** Rolagem em px até onde o header é transparente. `null` = sempre sólido. */
+  transparentUntil: number | null;
+  /** Texto claro enquanto transparente. Só a home tem capa escura embaixo. */
+  lightTextWhenTransparent: boolean;
+  /** Sai da tela ao rolar para baixo e volta ao rolar para cima. */
+  hidesOnScroll: boolean;
+}
 
-const SOLID_HEADER_ROUTES = ["/checkout", "/contact"];
+// A home usa 50px, e não 0, porque é o comportamento que ela já tinha — a capa
+// tolera um começo de rolagem sem trocar de cor. O produto usa 0: a foto ocupa
+// a tela inteira, então qualquer rolagem já pede header legível.
+const HOME: HeaderMode = { transparentUntil: 50, lightTextWhenTransparent: true, hidesOnScroll: false };
+const PRODUCT: HeaderMode = { transparentUntil: 0, lightTextWhenTransparent: false, hidesOnScroll: true };
+const LISTING: HeaderMode = { transparentUntil: null, lightTextWhenTransparent: false, hidesOnScroll: true };
+const PINNED: HeaderMode = { transparentUntil: null, lightTextWhenTransparent: false, hidesOnScroll: false };
+
+const LISTING_ROUTES = ["/collections/", "/sale", "/catalog", "/search"];
+
+// `PINNED` é o padrão, e não o transparente: uma rota nova aparecer com header
+// sólido é feio; aparecer com header invisível sobre fundo branco é um bug que
+// ninguém nota até um cliente reclamar. /account, /cart, /checkout,
+// /checkout/success, /contact e /verify-email caem aqui.
+function resolveHeaderMode(pathname: string | null): HeaderMode {
+  if (!pathname || pathname === "/") return HOME;
+  if (pathname.startsWith("/product/")) return PRODUCT;
+  if (LISTING_ROUTES.some((route) => pathname.startsWith(route))) return LISTING;
+  return PINNED;
+}
 
 interface UserActionBtnProps {
   className?: string;
@@ -126,21 +145,21 @@ export function Header() {
   const pathname = usePathname();
   const { isAuthenticated, user, isLoading: isAuthLoading } = useAuth();
   const isAdmin = !isAuthLoading && user?.role === "ADMIN";
-  const { cartCount, setIsCartOpen } = useCart();
-  const [isScrolled, setIsScrolled] = useState(false);
+  const { cartCount, isCartOpen, setIsCartOpen } = useCart();
   const [isHovered, setIsHovered] = useState(false);
   const [canHover, setCanHover] = useState(false);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
+  const mode = resolveHeaderMode(pathname);
 
-    handleScroll();
+  // Qualquer painel aberto está visualmente ancorado no header. Deixá-lo
+  // deslizar para fora levaria o menu pendurado junto.
+  const isPanelOpen = isMenuOpen || isCartOpen || isAuthPanelOpen;
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  const { isHidden, isPastTransparency } = useHeaderScroll({
+    canHide: mode.hidesOnScroll,
+    pinned: isPanelOpen,
+    transparentUntil: mode.transparentUntil,
+  });
 
   useEffect(() => {
     const pointer = window.matchMedia("(hover: hover) and (pointer: fine)");
@@ -154,16 +173,9 @@ export function Header() {
     return () => pointer.removeEventListener("change", update);
   }, []);
 
-  const isAlwaysTransparentWithBlackText = LIGHT_BACKGROUND_ROUTES.some((route) =>
-    pathname?.startsWith(route),
-  );
-  const hasSolidHeader = SOLID_HEADER_ROUTES.some((route) => pathname?.startsWith(route));
-
-  const isTransparent =
-    !hasSolidHeader &&
-    (isAlwaysTransparentWithBlackText
-      ? !isHovered
-      : !isScrolled && !isHovered);
+  // O hover derruba a transparência para o header continuar legível quando
+  // alguém mira o menu sobre uma foto clara.
+  const isTransparent = !isPastTransparency && !isHovered && !isPanelOpen;
 
   const getInitials = () => {
     if (!user) return "";
@@ -305,9 +317,11 @@ export function Header() {
       <header
         onMouseEnter={canHover ? () => setIsHovered(true) : undefined}
         onMouseLeave={canHover ? () => setIsHovered(false) : undefined}
-        className={`fixed top-0 w-full z-40 transition-all duration-300 border-b ${
+        className={`fixed top-0 w-full z-40 transition-all duration-300 motion-reduce:transition-none border-b ${
+          isHidden ? "-translate-y-full" : "translate-y-0"
+        } ${
           isTransparent
-            ? `bg-transparent border-transparent ${isAlwaysTransparentWithBlackText ? "text-foreground" : "text-white"}`
+            ? `bg-transparent border-transparent ${mode.lightTextWhenTransparent ? "text-white" : "text-foreground"}`
             : "bg-background text-foreground border-muted shadow-sm"
         }`}
       >
