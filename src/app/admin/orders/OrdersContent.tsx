@@ -25,6 +25,12 @@ const TYPING_DEBOUNCE_MS = 350;
 const FIELD =
   "h-9 px-3 bg-transparent border border-muted text-sm text-foreground focus:outline-none focus:border-foreground transition-colors";
 
+// Arrastar para copiar o e-mail do cliente termina em `click` na linha. Sem
+// esta guarda, selecionar texto navegaria para o pedido e perderia a seleção.
+function isSelectingText(): boolean {
+  return (window.getSelection()?.toString().length ?? 0) > 0;
+}
+
 export function OrdersContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -77,6 +83,24 @@ export function OrdersContent() {
     },
     placeholderData: keepPreviousData,
   });
+
+  // A linha inteira abre o pedido, mas o link do número continua ali de
+  // propósito: é ele que dá o foco pelo teclado, o "abrir em nova aba" do botão
+  // direito e o prefetch do Next. O clique na linha é atalho de mouse, não a
+  // única porta — uma `<tr>` com `onClick` seria invisível para quem navega por
+  // Tab.
+  const openOrder = (event: React.MouseEvent<HTMLTableRowElement>, id: number) => {
+    // O clique no próprio link já navega; deixar passar navegaria duas vezes.
+    if ((event.target as HTMLElement).closest("a, button, input, select, label")) return;
+    if (isSelectingText()) return;
+
+    const href = `/admin/orders/${id}`;
+    if (event.metaKey || event.ctrlKey || event.shiftKey) {
+      window.open(href, "_blank", "noopener");
+      return;
+    }
+    router.push(href);
+  };
 
   const orders = data?.content ?? [];
   const totalPages = data?.page.totalPages ?? 0;
@@ -211,7 +235,11 @@ export function OrdersContent() {
               </thead>
               <tbody>
                 {orders.map((order) => (
-                  <tr key={order.id} className="border-b border-muted/60 hover:bg-muted/30 transition-colors">
+                  <tr
+                    key={order.id}
+                    onClick={(event) => openOrder(event, order.id)}
+                    className="border-b border-muted/60 hover:bg-muted/30 transition-colors cursor-pointer"
+                  >
                     <td className="py-3 pr-4">
                       <Link
                         href={`/admin/orders/${order.id}`}
