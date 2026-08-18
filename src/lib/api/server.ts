@@ -10,6 +10,21 @@ import type {
 
 const CATALOG_REVALIDATE_SECONDS = 300;
 
+// O Next derruba a geração de uma página estática em 60s. Um serviço do Render
+// hibernando segura a conexão durante o spin-up, e `fetch` sem prazo fica
+// pendurado até esse limite — foi exatamente o que reprovou o build na Vercel.
+//
+// No build o prazo é maior, para um backend lento mas vivo ainda responder.
+// 25s, e não 45s, porque o sitemap pagina produtos em chamadas sequenciais:
+// duas lentas somariam 50s e ainda cabem nos 60s. Com 45s, a segunda já
+// estouraria o limite e reprovaria a página.
+//
+// Em runtime esperar tanto é inútil, porque a função da Vercel é encerrada
+// antes disso. 10s faz o aviso de cold start aparecer rápido, e a retentativa
+// do BackendUnavailableBanner assume daí em diante.
+const CATALOG_TIMEOUT_MS =
+  process.env.NEXT_PHASE === 'phase-production-build' ? 25_000 : 10_000;
+
 export class CatalogUnavailableError extends Error {
   constructor(detail: string, options?: { cause?: unknown }) {
     super(`catalog backend unavailable: ${detail}`, options);
@@ -32,9 +47,16 @@ async function catalogFetch<T>(
 
   let res: Response;
   try {
-    res = await fetch(url, { next: { revalidate, tags } });
+    res = await fetch(url, {
+      next: { revalidate, tags },
+      signal: AbortSignal.timeout(CATALOG_TIMEOUT_MS),
+    });
   } catch (error) {
-    throw new CatalogUnavailableError(`${path} — no response`, { cause: error });
+    // Separar os dois no log importa: "no response" é backend inalcançável,
+    // "timed out" é backend que atendeu a conexão e não respondeu a tempo —
+    // a assinatura de um serviço acordando.
+    const detail = (error as Error)?.name === 'TimeoutError' ? 'timed out' : 'no response';
+    throw new CatalogUnavailableError(`${path} — ${detail}`, { cause: error });
   }
 
   if (res.status === 404) return null;
