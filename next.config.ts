@@ -15,10 +15,16 @@ const nextConfig: NextConfig = {
       );
     }
 
+    // Mesma normalização de `serverEnv.API_URL`, repetida aqui porque o
+    // next.config é carregado antes do alias `@/` existir. Sem ela, uma barra
+    // final na variável vira `//api/...` no destino, e o StrictHttpFirewall do
+    // Spring Security responde 400 sem chegar a nenhum controller.
+    const origin = apiUrl.replace(/\/+$/, '');
+
     return [
       {
         source: '/api/:path*',
-        destination: `${apiUrl}/api/:path*`,
+        destination: `${origin}/api/:path*`,
       },
     ];
   },

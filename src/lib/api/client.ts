@@ -78,6 +78,35 @@ export class ApiError<T = unknown> extends Error {
     const data = this.response?.data as { detail?: unknown } | null | undefined;
     return typeof data?.detail === "string" && data.detail.startsWith("Security Alert");
   }
+
+  get isBackendUnavailable(): boolean {
+    // 5xx cobre tanto o 500 genérico do Spring quanto o 502/503/504 que a
+    // Vercel devolve quando não alcança o Render.
+    if ((this.response?.status ?? 0) >= 500) return true;
+
+    // Um serviço do Render em spin-up responde com a própria página HTML de
+    // carregamento. Nenhum endpoint desta API devolve HTML, então isso é
+    // backend ausente — não resposta válida.
+    return isHtmlContentType(this.response?.headers.get("content-type") ?? null);
+  }
+}
+
+/**
+ * Contraparte no navegador do `isCatalogUnavailable` do servidor: distingue
+ * "backend fora do ar ou ainda hibernando" de erro de negócio. Existe para o
+ * aviso global e para o formulário de autenticação decidirem a mesma coisa da
+ * mesma forma, em vez de cada um inventar sua heurística.
+ */
+export function isBackendUnavailable(error: unknown): boolean {
+  if (error instanceof ApiError) return error.isBackendUnavailable;
+
+  // Sem `ApiError` a requisição nunca chegou a receber status. `TimeoutError`
+  // é o timeout de 30s estourando enquanto o serviço sobe; `TypeError` é a
+  // falha de rede do fetch. `AbortError` fica de fora de propósito: quem
+  // cancelou foi o componente desmontando, não o backend.
+  if (error instanceof DOMException) return error.name === "TimeoutError";
+
+  return error instanceof TypeError;
 }
 
 function buildUrl(path: string, params?: QueryParams): string {
@@ -89,6 +118,11 @@ function buildUrl(path: string, params?: QueryParams): string {
   }
   const query = search.toString();
   return `${BASE_URL}${path}${query ? `?${query}` : ""}`;
+}
+
+function isHtmlContentType(contentType: string | null): boolean {
+  if (!contentType) return false;
+  return contentType.split(";")[0].trim().toLowerCase() === "text/html";
 }
 
 function isJsonContentType(contentType: string | null): boolean {
@@ -180,6 +214,17 @@ async function request<T>(
   const payload = await parseBody(res);
 
   if (res.ok) {
+    // Um 200 com corpo HTML não é sucesso: é a página de carregamento do
+    // Render enquanto o serviço acorda. Tratar como resposta válida faria o
+    // componente renderizar lixo em vez de avisar.
+    if (isHtmlContentType(res.headers.get("content-type"))) {
+      throw new ApiError("Backend unavailable: HTML body", {
+        status: res.status,
+        data: payload,
+        headers: res.headers,
+      });
+    }
+
     return { data: payload as T, status: res.status, headers: res.headers };
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Clock } from "lucide-react";
 
@@ -17,17 +17,28 @@ export function ColdStartNotice() {
 
   const exhausted = attempt >= MAX_ATTEMPTS;
 
+  // A contagem vive numa ref, e não só no estado, porque quem decide a virada
+  // é o callback do intervalo. Ler o estado ali daria o valor congelado do
+  // fechamento; e mover a decisão para dentro do updater do setState — que foi
+  // como isto nasceu — chama `router.refresh()` durante a renderização, que o
+  // React recusa com "Cannot update a component while rendering a different
+  // component". Updater tem que ser puro.
+  const remainingRef = useRef(RETRY_INTERVAL_SECONDS);
+
   useEffect(() => {
     if (exhausted) return;
 
     const timer = setInterval(() => {
-      setSecondsLeft((remaining) => {
-        if (remaining > 1) return remaining - 1;
+      if (remainingRef.current > 1) {
+        remainingRef.current -= 1;
+        setSecondsLeft(remainingRef.current);
+        return;
+      }
 
-        setAttempt((current) => current + 1);
-        router.refresh();
-        return RETRY_INTERVAL_SECONDS;
-      });
+      remainingRef.current = RETRY_INTERVAL_SECONDS;
+      setSecondsLeft(RETRY_INTERVAL_SECONDS);
+      setAttempt((current) => current + 1);
+      router.refresh();
     }, 1000);
 
     return () => clearInterval(timer);
@@ -59,6 +70,7 @@ export function ColdStartNotice() {
         <div className="pt-8 flex justify-center">
           <button
             onClick={() => {
+              remainingRef.current = RETRY_INTERVAL_SECONDS;
               setAttempt(0);
               setSecondsLeft(RETRY_INTERVAL_SECONDS);
               router.refresh();

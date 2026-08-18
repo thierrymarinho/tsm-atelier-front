@@ -12,8 +12,11 @@ function required(name: string): string {
 }
 
 export const serverEnv = {
+  // A barra final é removida porque quem chama sempre concatena um caminho que
+  // já começa com barra. Deixá-la passar produz `//api/...`, que o
+  // StrictHttpFirewall do Spring Security recusa com 400 antes do controller.
   get API_URL(): string {
-    return required('SPRING_BOOT_API_URL');
+    return required('SPRING_BOOT_API_URL').replace(/\/+$/, '');
   },
 
   get SITE_URL(): string {

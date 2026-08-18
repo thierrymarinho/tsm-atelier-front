@@ -154,22 +154,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
     } else {
       const id = `${item.productId}-${item.colorHex}-${item.size}`;
-      setItems((prev) => {
-        const existingItem = prev.find((i) => i.id === id);
-        if (existingItem) {
-          const newQty = existingItem.quantity + 1;
-          const maxAllowed = Math.min(10, existingItem.stockQuantity);
-          if (newQty > maxAllowed) {
-            toast(`Limite máximo atingido. Só temos ${existingItem.stockQuantity} unidades disponíveis.`, "error");
-            return prev;
-          }
-          return prev.map((i) =>
-            i.id === id ? { ...i, quantity: newQty } : i
-          );
-        } else {
-          return [...prev, { ...item, id, quantity: 1 }];
-        }
-      });
+
+      // A decisão é tomada aqui fora, e não dentro do updater: `toast()` altera
+      // o estado do ToastProvider, e updater roda durante a renderização — o
+      // React recusa com "Cannot update a component while rendering a different
+      // component". Ler de `items` é correto num handler de evento, que só
+      // roda depois da renderização que o registrou.
+      const existingItem = items.find((i) => i.id === id);
+
+      if (!existingItem) {
+        setItems((prev) => [...prev, { ...item, id, quantity: 1 }]);
+      } else if (existingItem.quantity + 1 > Math.min(10, existingItem.stockQuantity)) {
+        toast(`Limite máximo atingido. Só temos ${existingItem.stockQuantity} unidades disponíveis.`, "error");
+      } else {
+        setItems((prev) => prev.map((i) => (i.id === id ? { ...i, quantity: i.quantity + 1 } : i)));
+      }
+
       setIsCartOpen(true);
     }
   };
@@ -204,17 +204,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
         handleApiError(error);
       }
     } else {
-      setItems((prev) => {
-        const existingItem = prev.find((i) => i.id === id);
-        if (existingItem) {
-          const maxAllowed = Math.min(10, existingItem.stockQuantity);
-          if (quantity > maxAllowed) {
-            toast(`Infelizmente, só temos ${existingItem.stockQuantity} unidades deste produto disponíveis no momento.`, "error");
-            quantity = maxAllowed;
-          }
+      // Mesmo motivo do addItem: o aviso e o teto saem do updater, que precisa
+      // ser puro. De quebra, o parâmetro `quantity` deixa de ser reatribuído.
+      const existingItem = items.find((i) => i.id === id);
+      let nextQuantity = quantity;
+
+      if (existingItem) {
+        const maxAllowed = Math.min(10, existingItem.stockQuantity);
+        if (nextQuantity > maxAllowed) {
+          toast(`Infelizmente, só temos ${existingItem.stockQuantity} unidades deste produto disponíveis no momento.`, "error");
+          nextQuantity = maxAllowed;
         }
-        return prev.map((item) => (item.id === id ? { ...item, quantity } : item));
-      });
+      }
+
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, quantity: nextQuantity } : i)));
     }
   };
 
