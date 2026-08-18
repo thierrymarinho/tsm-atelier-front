@@ -58,7 +58,13 @@ export async function withCatalogFallback<T>(operation: Promise<T>, fallback: T)
     return await operation;
   } catch (error) {
     if (!isCatalogUnavailable(error)) throw error;
-    console.error(`[catalog] ${(error as Error).message}`);
+
+    // `warn`, e não `error`: a condição está tratada — existe fallback e a
+    // página renderiza. Nível de erro fica para o que ninguém pegou. Em
+    // desenvolvimento isso também tira a linha do overlay do Next, que só
+    // reage a `console.error`; a home faz três buscas em paralelo, então uma
+    // queda do backend abria três diálogos para um único fato.
+    console.warn(`[catalog] ${(error as Error).message}`);
     return fallback;
   }
 }
