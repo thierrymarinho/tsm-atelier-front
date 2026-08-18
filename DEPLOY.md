@@ -81,15 +81,15 @@ Três consequências:
 ```
 1. Neon        →  2. Upstash  →  3. Cloudinary  →  4. Resend
                                       ↓
-5. Criar projeto na Vercel (SEM deploy)  ──→ obtém a URL pública
+5. Criar projeto na Vercel (SEM deploy)  ──→ URL pública ────┐
+                                      ↓                      │
+6. Stripe: cadastrar webhook nessa URL   ──→ whsec_ ──┐      │
+                                      ↓               │      │
+7. Render: subir o backend  ←── whsec_ + APP_BASE_URL ┴──────┘
                                       ↓
-6. Stripe: cadastrar webhook nessa URL   ──→ obtém o whsec_
-                                      ↓
-7. Render: subir o backend               ──→ obtém a URL da API
+                             obtém a URL da API
                                       ↓
 8. Vercel: primeiro deploy
-                                      ↓
-9. Render: preencher APP_BASE_URL e redeploy
 ```
 
 **O nó está entre 5, 6 e 7.** O backend **não sobe** com `STRIPE_WEBHOOK_SECRET`
@@ -101,6 +101,10 @@ endpoint aponta para a URL da Vercel.
 Desfaz assim: **crie o projeto na Vercel antes de fazer deploy**. O domínio
 `*.vercel.app` é atribuído na criação, e a Stripe aceita registrar um endpoint
 que ainda não responde.
+
+Esse mesmo domínio também é o valor de `APP_BASE_URL`, então o Render recebe
+tudo de uma vez no passo 4.7 — não sobra variável pendente para um segundo
+deploy.
 
 **O front vem depois do backend** por outro motivo: a home é pré-renderizada e
 busca a coleção da capa **durante o build**. Com o backend fora do ar, o hero cai
@@ -204,8 +208,8 @@ no fallback com a marca, e esse HTML fica servido até a revalidação.
 ### 4.5 Vercel — criar o projeto, sem publicar ainda
 
 1. Importar o repositório do front. O preset Next.js é detectado sozinho.
-2. **Anotar o domínio** `https://<projeto>.vercel.app`. É dele que os passos 4.6
-   e 4.9 dependem.
+2. **Anotar o domínio** `https://<projeto>.vercel.app`. É dele que o passo 4.6
+   (URL do webhook) e o 4.7 (`APP_BASE_URL`) dependem.
 3. Cadastrar as duas variáveis, marcando **Production e Preview**:
 
    | Variável | Valor |
@@ -246,12 +250,22 @@ no fallback com a marca, e esse HTML fica servido até a revalidação.
 
 3. **Plano.** O `render.yaml` vem com `starter`. Ver a seção 8 antes de trocar
    para `free`.
-4. Preencher todas as variáveis da tabela 6.2, **menos `APP_BASE_URL`** — ela
-   entra no passo 4.9.
+4. Preencher **todas** as variáveis da tabela 6.2, inclusive
+   `APP_BASE_URL=https://<projeto>.vercel.app`, com o domínio anotado no 4.5.
+
+   É essa variável que monta o link de verificação de e-mail. Apontá-la para o
+   backend gera links quebrados — e o cadastro parece funcionar até alguém
+   tentar confirmar a conta. Ela tem padrão `http://localhost:3000`, então
+   esquecê-la **não derruba o boot**: a falha só aparece no primeiro e-mail.
+
 5. Deploy. O primeiro sobe o esquema pelo Flyway e semeia o admin.
 6. Anotar a URL: `https://tsm-atelier-api.onrender.com`.
 7. **Voltar à Vercel** e preencher `SPRING_BOOT_API_URL` com essa URL, **sem a
    barra final e sem `/api`** — o rewrite já acrescenta `/api/:path*`.
+
+> Se um domínio próprio entrar depois, `APP_BASE_URL` e a URL do webhook na
+> Stripe passam a apontar para o antigo `*.vercel.app`. As duas precisam ser
+> atualizadas, e o Render exige redeploy para a variável valer.
 
 ### 4.8 Vercel — publicar
 
@@ -260,17 +274,8 @@ no fallback com a marca, e esse HTML fica servido até a revalidação.
 3. Se o build falhar com `Missing required environment variable`, a variável não
    estava no ambiente que construiu. É a mensagem funcionando como projetada.
 
-### 4.9 Fechar o círculo
-
-De volta ao Render, preencher e **redeployar**:
-
-```
-APP_BASE_URL=https://<projeto>.vercel.app
-```
-
-É essa variável que monta o link de verificação de e-mail. Apontá-la para o
-backend gera links quebrados — e o cadastro parece funcionar até alguém tentar
-confirmar a conta.
+Com isso o círculo fecha: o front conhece a API pelo `SPRING_BOOT_API_URL`, e o
+backend conhece o front pelo `APP_BASE_URL`. Nenhum redeploy extra.
 
 ---
 
@@ -361,6 +366,13 @@ seguro por projeto, é a chave publicável. A secreta mora no Render.
 
 **Não existe variável para a base da API no navegador.** É o `/api` relativo,
 fixo em `src/lib/api/client.ts`, pelo motivo da seção 2.
+
+> **A barra final é removida no código**, tanto no `next.config.ts` quanto em
+> `serverEnv.API_URL`. Antes disso, `https://api.exemplo.com/` virava
+> `https://api.exemplo.com//api/v1/...`, e o `StrictHttpFirewall` do Spring
+> Security recusava o `//` com **400** antes de qualquer controller — sem
+> `title` nem `detail`, porque o `GlobalExceptionHandler` nunca era alcançado.
+> Ainda assim, escreva sem a barra: é uma normalização, não um convite.
 
 ### 6.2 Render (backend)
 
