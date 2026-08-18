@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { X, Lock, Loader2 } from "lucide-react";
+import { TestModeCardHints, isStripeTestMode } from "./TestModeCardHints";
 
 const StripePaymentElements = dynamic(() => import("./StripePaymentElements"), {
   ssr: false,
@@ -37,6 +38,11 @@ export function PaymentDrawer({ isOpen, onClose, clientSecret, totalAmount }: Pa
 
   if (!mounted || !isOpen || !clientSecret) return null;
 
+  // A largura extra só faz sentido quando existe painel para ocupá-la. Em modo
+  // live o `TestModeCardHints` não renderiza nada, e o diálogo continua com a
+  // mesma coluna de sempre em vez de esticar em torno de espaço vazio.
+  const hasHints = isStripeTestMode();
+
   return (
     <>
       <div
@@ -46,7 +52,9 @@ export function PaymentDrawer({ isOpen, onClose, clientSecret, totalAmount }: Pa
 
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 pointer-events-none">
         <div
-          className="relative w-full max-w-[500px] max-h-full bg-background shadow-2xl flex flex-col pointer-events-auto animate-zoom-in"
+          className={`relative w-full max-h-full bg-background shadow-2xl flex flex-col pointer-events-auto animate-zoom-in ${
+            hasHints ? "max-w-[500px] lg:max-w-[860px]" : "max-w-[500px]"
+          }`}
         >
         <div className="flex items-center justify-between p-6 border-b border-muted">
           <h2 className="text-sm font-semibold tracking-widest uppercase flex items-center gap-2">
@@ -61,8 +69,11 @@ export function PaymentDrawer({ isOpen, onClose, clientSecret, totalAmount }: Pa
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
-          <StripePaymentElements clientSecret={clientSecret} totalAmount={totalAmount} />
+        <div className="flex-1 min-h-0 flex flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
+          <TestModeCardHints />
+          <div className="flex-1 p-6 lg:overflow-y-auto">
+            <StripePaymentElements clientSecret={clientSecret} totalAmount={totalAmount} />
+          </div>
         </div>
         </div>
       </div>
