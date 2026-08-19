@@ -11,6 +11,7 @@ import {
   readStoredCart,
   type CartItem,
 } from "@/lib/cart-storage";
+import { limitMessage, maxUnitsFor } from "@/lib/cart-limits";
 
 export type { CartItem };
 
@@ -24,6 +25,7 @@ interface CartContextType {
   removeItem: (id: string | number) => Promise<void>;
   updateQuantity: (id: string | number, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
+  refreshCart: () => Promise<void>;
   isCartOpen: boolean;
   setIsCartOpen: (isOpen: boolean) => void;
   cartTotal: number;
@@ -51,6 +53,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         id: i.id,
         productId: i.productId,
         skuId: i.skuId,
+        skuCode: i.skuCode,
         name: i.productName,
         slug: i.productSlug,
         colorName: i.colorName,
@@ -132,7 +135,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (error.response?.status === 409) {
       const availableQuantity = error.response.data?.availableQuantity;
       if (availableQuantity !== undefined) {
-        toast(`Infelizmente, só temos ${availableQuantity} unidades deste produto disponíveis no momento.`, "error");
+        toast(limitMessage(availableQuantity), "error");
       } else {
         toast("Falta de estoque para este produto.", "error");
       }
@@ -155,17 +158,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     } else {
       const id = `${item.productId}-${item.colorHex}-${item.size}`;
 
-      // A decisão é tomada aqui fora, e não dentro do updater: `toast()` altera
-      // o estado do ToastProvider, e updater roda durante a renderização — o
-      // React recusa com "Cannot update a component while rendering a different
-      // component". Ler de `items` é correto num handler de evento, que só
-      // roda depois da renderização que o registrou.
       const existingItem = items.find((i) => i.id === id);
 
       if (!existingItem) {
         setItems((prev) => [...prev, { ...item, id, quantity: 1 }]);
-      } else if (existingItem.quantity + 1 > Math.min(10, existingItem.stockQuantity)) {
-        toast(`Limite máximo atingido. Só temos ${existingItem.stockQuantity} unidades disponíveis.`, "error");
+      } else if (existingItem.quantity + 1 > maxUnitsFor(existingItem.stockQuantity)) {
+        toast(limitMessage(existingItem.stockQuantity), "error");
       } else {
         setItems((prev) => prev.map((i) => (i.id === id ? { ...i, quantity: i.quantity + 1 } : i)));
       }
@@ -204,15 +202,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
         handleApiError(error);
       }
     } else {
-      // Mesmo motivo do addItem: o aviso e o teto saem do updater, que precisa
-      // ser puro. De quebra, o parâmetro `quantity` deixa de ser reatribuído.
       const existingItem = items.find((i) => i.id === id);
       let nextQuantity = quantity;
 
       if (existingItem) {
-        const maxAllowed = Math.min(10, existingItem.stockQuantity);
+        const maxAllowed = maxUnitsFor(existingItem.stockQuantity);
         if (nextQuantity > maxAllowed) {
-          toast(`Infelizmente, só temos ${existingItem.stockQuantity} unidades deste produto disponíveis no momento.`, "error");
+          toast(limitMessage(existingItem.stockQuantity), "error");
           nextQuantity = maxAllowed;
         }
       }
@@ -220,6 +216,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setItems((prev) => prev.map((i) => (i.id === id ? { ...i, quantity: nextQuantity } : i)));
     }
   };
+
+  const refreshCart = useCallback(async () => {
+    if (!isAuthenticated) return;
+    await fetchApiCart();
+  }, [isAuthenticated, fetchApiCart]);
 
   const clearCart = useCallback(async () => {
     setItems([]);
@@ -248,6 +249,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         removeItem,
         updateQuantity,
         clearCart,
+        refreshCart,
         isCartOpen,
         setIsCartOpen,
         cartTotal,

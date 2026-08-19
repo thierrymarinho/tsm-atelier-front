@@ -2,6 +2,7 @@ export interface CartItem {
   id: string | number;
   productId: number;
   skuId: number;
+  skuCode?: string;
   name: string;
   slug: string;
   colorName: string;
