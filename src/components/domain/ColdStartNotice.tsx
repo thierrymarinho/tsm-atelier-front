@@ -56,7 +56,7 @@ export function ColdStartNotice({ reset }: { reset?: () => void }) {
   }, [exhausted, retry]);
 
   return (
-    <div className="flex-1 w-full min-h-[70vh] flex flex-col items-center justify-center px-4 text-center">
+    <div className="flex-1 w-full min-h-[70vh] mt-[var(--header-height)] flex flex-col items-center justify-center px-4 text-center">
       <div className="max-w-xl mx-auto space-y-8">
         <div className="flex justify-center text-muted-foreground/30 mb-8">
           <Clock className="w-20 h-20" strokeWidth={1} />
