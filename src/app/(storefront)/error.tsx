@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { RotateCcw } from "lucide-react";
+import { ColdStartNotice } from "@/components/domain/ColdStartNotice";
+import { CATALOG_UNAVAILABLE_DIGEST } from "@/lib/catalog-unavailable";
 
 export default function Error({
   error,
@@ -14,6 +16,10 @@ export default function Error({
   useEffect(() => {
     console.error("Route error:", error);
   }, [error]);
+
+  if (error.digest === CATALOG_UNAVAILABLE_DIGEST) {
+    return <ColdStartNotice reset={reset} />;
+  }
 
   return (
     <div className="flex-1 w-full min-h-[70vh] flex flex-col items-center justify-center px-4 text-center mt-16 sm:mt-20">

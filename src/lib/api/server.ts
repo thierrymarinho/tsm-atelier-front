@@ -1,4 +1,5 @@
 import { serverEnv } from '@/lib/env';
+import { CATALOG_UNAVAILABLE_DIGEST } from '@/lib/catalog-unavailable';
 import type {
   CollectionResponseDTO,
   DisplayPosition,
@@ -26,6 +27,8 @@ const CATALOG_TIMEOUT_MS =
   process.env.NEXT_PHASE === 'phase-production-build' ? 25_000 : 10_000;
 
 export class CatalogUnavailableError extends Error {
+  readonly digest = CATALOG_UNAVAILABLE_DIGEST;
+
   constructor(detail: string, options?: { cause?: unknown }) {
     super(`catalog backend unavailable: ${detail}`, options);
     this.name = 'CatalogUnavailableError';
