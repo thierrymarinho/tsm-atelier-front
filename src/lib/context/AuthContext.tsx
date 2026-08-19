@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { apiClient, onSessionExpired } from "@/lib/api/client";
+import { createContext, useContext, useEffect, useCallback, ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiClient, isBackendUnavailable, onSessionExpired } from "@/lib/api/client";
 import { useToast } from "@/lib/context/ToastContext";
 import { CART_STORAGE_KEY, readStoredCart } from "@/lib/cart-storage";
 import { canOpenAdmin, canSeeOrders, canWrite } from "@/lib/auth/roles";
@@ -29,23 +30,52 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+export const AUTH_ME_QUERY_KEY = ["auth", "me"] as const;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserResponseDTO | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const fetchMe = useCallback(async () => {
-    try {
-      const response = await apiClient.get<UserResponseDTO>("/v1/auth/me");
-      setUser(response.data);
-    } catch {
-      setUser(null);
-    }
-  }, []);
+  // A sessão é query do React Query, e não estado próprio, por uma razão de
+  // recuperação: assim ela entra no cache, o BackendUnavailableBanner a vê
+  // falhar e a refaz junto das outras quando o backend acorda. Como efeito de
+  // montagem solto — que foi como isto nasceu — ela rodava uma vez e nunca
+  // mais: o catálogo voltava do cold start e a sessão só com F5.
+  const sessionQuery = useQuery({
+    queryKey: AUTH_ME_QUERY_KEY,
+    queryFn: async () => {
+      try {
+        const response = await apiClient.get<UserResponseDTO>("/v1/auth/me");
+        return response.data;
+      } catch (error) {
+        // Backend fora não é resposta sobre a sessão. Lançar mantém o dado
+        // anterior no cache e acende o aviso; devolver `null` aqui afirmaria
+        // que o visitante é anônimo, e era isso que deslogava na tela quem
+        // chegava durante a hibernação.
+        if (isBackendUnavailable(error)) throw error;
+        return null;
+      }
+    },
+  });
 
-  useEffect(() => {
-    fetchMe().finally(() => setIsLoading(false));
-  }, [fetchMe]);
+  const user = sessionQuery.data ?? null;
+
+  // Só a primeira falha deixa a sessão realmente desconhecida. Depois de uma
+  // resposta, o React Query preserva o dado através do erro: quem estava
+  // logado continua logado, e quem já se sabia anônimo continua anônimo.
+  const isSessionUnknown = sessionQuery.isError && sessionQuery.data === undefined;
+  const isLoading = sessionQuery.isPending || isSessionUnknown;
+
+  const setUser = useCallback(
+    (next: UserResponseDTO | null) => {
+      queryClient.setQueryData(AUTH_ME_QUERY_KEY, next);
+    },
+    [queryClient],
+  );
+
+  const fetchMe = useCallback(async () => {
+    await queryClient.refetchQueries({ queryKey: AUTH_ME_QUERY_KEY, exact: true });
+  }, [queryClient]);
 
   const hasSession = user !== null;
   useEffect(() => {
@@ -60,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         "error",
       );
     });
-  }, [hasSession, toast]);
+  }, [hasSession, toast, setUser]);
 
   const syncGuestCart = useCallback(async () => {
     try {
