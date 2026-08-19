@@ -6,19 +6,21 @@ import { useAuth } from "@/lib/context/AuthContext";
 import { useAuthPanel } from "@/lib/context/AuthPanelContext";
 import { rememberAuthIntent } from "@/lib/auth-intent";
 import { useCart } from "@/lib/context/CartContext";
+import { outOfStockMessage } from "@/lib/checkout-errors";
 import { SignInRequired } from "@/components/auth/SignInRequired";
 import { AddressSelector } from "@/components/checkout/AddressSelector";
 import { apiClient } from "@/lib/api/client";
 import { CheckoutRequestDTO, CheckoutResponseDTO } from "@/lib/types/api";
 import { Loader2, ShoppingBag } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { PaymentDrawer } from "@/components/checkout/PaymentDrawer";
 
 export default function CheckoutPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const { openAuthPanel } = useAuthPanel();
-  const { items, cartTotal, isLoaded: isCartLoaded } = useCart();
+  const { items, cartTotal, isLoaded: isCartLoaded, refreshCart } = useCart();
 
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -26,6 +28,7 @@ export default function CheckoutPage() {
   const [orderError, setOrderError] = useState("");
   const [checkoutData, setCheckoutData] = useState<CheckoutResponseDTO | null>(null);
   const [isPaymentDrawerOpen, setIsPaymentDrawerOpen] = useState(false);
+  const [hasStockConflict, setHasStockConflict] = useState(false);
 
   useEffect(() => {
     if (!isAuthLoading && !isAuthenticated) {
@@ -45,6 +48,7 @@ export default function CheckoutPage() {
 
     setIsCreatingOrder(true);
     setOrderError("");
+    setHasStockConflict(false);
 
     try {
       const payload: CheckoutRequestDTO = {
@@ -63,7 +67,11 @@ export default function CheckoutPage() {
       const errorData = error?.response?.data;
       const status = error?.response?.status ?? errorData?.status;
 
-      if (status === 422 && errorData?.fields) {
+      if (status === 409) {
+        setOrderError(outOfStockMessage(errorData ?? {}, items));
+        setHasStockConflict(true);
+        await refreshCart();
+      } else if (status === 422 && errorData?.fields) {
         const fieldErrors = Object.entries(errorData.fields)
           .map(([field, msg]) => `- ${field}: ${msg}`)
           .join("\n");
@@ -75,6 +83,8 @@ export default function CheckoutPage() {
       setIsCreatingOrder(false);
     }
   };
+
+  const needsCartFix = hasStockConflict || items.some((item) => !item.available);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -119,7 +129,7 @@ export default function CheckoutPage() {
 
             <button
               onClick={clientSecret ? () => setIsPaymentDrawerOpen(true) : handleCreateOrder}
-              disabled={!selectedAddressId || isCreatingOrder}
+              disabled={!selectedAddressId || isCreatingOrder || needsCartFix}
               className="w-full mt-6 py-4 bg-foreground text-background text-xs uppercase tracking-widest font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isCreatingOrder && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -127,7 +137,17 @@ export default function CheckoutPage() {
             </button>
 
             {orderError && (
-              <p className="text-sm text-red-500 mt-4 whitespace-pre-line leading-relaxed">{orderError}</p>
+              <div className="mt-4 flex flex-col items-start gap-2">
+                <p className="text-sm text-red-500 whitespace-pre-line leading-relaxed">{orderError}</p>
+                {needsCartFix && (
+                  <Link
+                    href="/cart"
+                    className="text-xs uppercase tracking-widest underline underline-offset-4 hover:opacity-70 transition-opacity"
+                  >
+                    Ir para o carrinho
+                  </Link>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -152,7 +172,14 @@ export default function CheckoutPage() {
                     />
                   </div>
                   <div className="flex flex-col justify-center flex-1 text-sm">
-                    <span className="font-medium line-clamp-1">{item.name}</span>
+                    <span className="font-medium flex items-center gap-2">
+                      <span className="line-clamp-1">{item.name}</span>
+                      {!item.available && (
+                        <span className="bg-red-500/10 text-red-600 px-1.5 py-0.5 rounded font-semibold text-[10px] tracking-wider uppercase flex-shrink-0">
+                          Indisponível
+                        </span>
+                      )}
+                    </span>
                     <span className="text-muted-foreground text-xs mt-1">Cor: {item.colorName}</span>
                     <span className="text-muted-foreground text-xs">Tam: {item.size} | Qtd: {item.quantity}</span>
                     <span className="font-medium mt-1">{formatPrice(item.price * item.quantity)}</span>

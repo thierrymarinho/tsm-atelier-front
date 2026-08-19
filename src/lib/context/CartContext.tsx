@@ -25,6 +25,7 @@ interface CartContextType {
   removeItem: (id: string | number) => Promise<void>;
   updateQuantity: (id: string | number, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
+  refreshCart: () => Promise<void>;
   isCartOpen: boolean;
   setIsCartOpen: (isOpen: boolean) => void;
   cartTotal: number;
@@ -52,6 +53,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         id: i.id,
         productId: i.productId,
         skuId: i.skuId,
+        skuCode: i.skuCode,
         name: i.productName,
         slug: i.productSlug,
         colorName: i.colorName,
@@ -222,6 +224,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshCart = useCallback(async () => {
+    if (!isAuthenticated) return;
+    await fetchApiCart();
+  }, [isAuthenticated, fetchApiCart]);
+
   const clearCart = useCallback(async () => {
     setItems([]);
 
@@ -249,6 +256,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         removeItem,
         updateQuantity,
         clearCart,
+        refreshCart,
         isCartOpen,
         setIsCartOpen,
         cartTotal,
