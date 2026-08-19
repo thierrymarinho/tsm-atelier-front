@@ -11,6 +11,7 @@ import {
   readStoredCart,
   type CartItem,
 } from "@/lib/cart-storage";
+import { limitMessage, maxUnitsFor } from "@/lib/cart-limits";
 
 export type { CartItem };
 
@@ -132,7 +133,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (error.response?.status === 409) {
       const availableQuantity = error.response.data?.availableQuantity;
       if (availableQuantity !== undefined) {
-        toast(`Infelizmente, só temos ${availableQuantity} unidades deste produto disponíveis no momento.`, "error");
+        toast(limitMessage(availableQuantity), "error");
       } else {
         toast("Falta de estoque para este produto.", "error");
       }
@@ -164,8 +165,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       if (!existingItem) {
         setItems((prev) => [...prev, { ...item, id, quantity: 1 }]);
-      } else if (existingItem.quantity + 1 > Math.min(10, existingItem.stockQuantity)) {
-        toast(`Limite máximo atingido. Só temos ${existingItem.stockQuantity} unidades disponíveis.`, "error");
+      } else if (existingItem.quantity + 1 > maxUnitsFor(existingItem.stockQuantity)) {
+        toast(limitMessage(existingItem.stockQuantity), "error");
       } else {
         setItems((prev) => prev.map((i) => (i.id === id ? { ...i, quantity: i.quantity + 1 } : i)));
       }
@@ -210,9 +211,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       let nextQuantity = quantity;
 
       if (existingItem) {
-        const maxAllowed = Math.min(10, existingItem.stockQuantity);
+        const maxAllowed = maxUnitsFor(existingItem.stockQuantity);
         if (nextQuantity > maxAllowed) {
-          toast(`Infelizmente, só temos ${existingItem.stockQuantity} unidades deste produto disponíveis no momento.`, "error");
+          toast(limitMessage(existingItem.stockQuantity), "error");
           nextQuantity = maxAllowed;
         }
       }

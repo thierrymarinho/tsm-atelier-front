@@ -1,6 +1,7 @@
 "use client";
 
 import { useCart } from "@/lib/context/CartContext";
+import { capNotice, maxUnitsFor } from "@/lib/cart-limits";
 import { ExpiredSessionNotice } from "@/components/cart/ExpiredSessionNotice";
 import Image from "next/image";
 import Link from "next/link";
@@ -54,89 +55,106 @@ export default function CartPage() {
       <div className="flex flex-col lg:flex-row gap-12 lg:gap-16">
 
         <div className="flex-1 flex flex-col gap-10">
-          {items.map((item) => (
-            <div key={item.id} className="flex flex-col sm:flex-row gap-6 sm:gap-8 pb-10 border-b border-muted">
+          {items.map((item) => {
+            const maxUnits = maxUnitsFor(item.stockQuantity);
+            const atCap = item.quantity >= maxUnits;
+            const notice = atCap ? capNotice(item.stockQuantity) : null;
 
-              <Link
-                href={`/product/${item.slug}`}
-                className="w-full sm:w-64 h-80 sm:h-72 relative bg-muted/20 flex-shrink-0 group block overflow-hidden"
-              >
-                <Image
-                  src={item.imageUrl || "/placeholder.jpg"}
-                  alt={item.name}
-                  fill
-                  className="object-cover object-top transition-transform duration-700 group-hover:scale-105"
-                  sizes="(max-width: 640px) 100vw, 256px"
-                />
-              </Link>
+            return (
+              <div key={item.id} className="flex flex-col sm:flex-row gap-6 sm:gap-8 pb-10 border-b border-muted">
 
-              <div className="flex flex-col flex-1 justify-between py-2">
-                <div className="flex flex-col gap-2">
-                  <Link
-                    href={`/product/${item.slug}`}
-                    className="font-medium text-base hover:opacity-70 transition-opacity uppercase tracking-wide"
-                  >
-                    {item.name}
-                  </Link>
-                  <p className="text-sm text-muted-foreground mt-1">Cor: {item.colorName}</p>
-                  <p className="text-sm text-muted-foreground">Tamanho: {item.size}</p>
+                <Link
+                  href={`/product/${item.slug}`}
+                  className="w-full sm:w-64 h-80 sm:h-72 relative bg-muted/20 flex-shrink-0 group block overflow-hidden"
+                >
+                  <Image
+                    src={item.imageUrl || "/placeholder.jpg"}
+                    alt={item.name}
+                    fill
+                    className="object-cover object-top transition-transform duration-700 group-hover:scale-105"
+                    sizes="(max-width: 640px) 100vw, 256px"
+                  />
+                </Link>
 
-                  <div className="flex items-center gap-4 mt-2">
-                    <span className="text-sm text-muted-foreground flex items-center gap-2">
-                      Quantidade:
-                      {!item.available && (
-                        <span className="bg-red-500/10 text-red-600 px-1.5 py-0.5 rounded font-semibold text-[10px] tracking-wider uppercase">
-                          Indisponível
-                        </span>
-                      )}
-                    </span>
-                    <div className="flex items-center border border-muted w-24">
-                      <button
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        disabled={isLocked}
-                        className="flex-1 py-1 flex items-center justify-center hover:bg-muted/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                        aria-label="Diminuir quantidade"
-                      >
-                        <Minus className="w-3 h-3" strokeWidth={2} />
-                      </button>
-                      <span className="text-sm w-8 text-center tabular-nums">
-                        {item.quantity}
+                <div className="flex flex-col flex-1 justify-between py-2">
+                  <div className="flex flex-col gap-2">
+                    <Link
+                      href={`/product/${item.slug}`}
+                      className="font-medium text-base hover:opacity-70 transition-opacity uppercase tracking-wide"
+                    >
+                      {item.name}
+                    </Link>
+                    <p className="text-sm text-muted-foreground mt-1">Cor: {item.colorName}</p>
+                    <p className="text-sm text-muted-foreground">Tamanho: {item.size}</p>
+
+                    <div className="flex items-center gap-4 mt-2">
+                      <span className="text-sm text-muted-foreground flex items-center gap-2">
+                        Quantidade:
+                        {!item.available && (
+                          <span className="bg-red-500/10 text-red-600 px-1.5 py-0.5 rounded font-semibold text-[10px] tracking-wider uppercase">
+                            Indisponível
+                          </span>
+                        )}
                       </span>
-                      <button
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        disabled={isLocked || item.quantity >= Math.min(10, item.stockQuantity)}
-                        className={`flex-1 py-1 flex items-center justify-center transition-colors ${
-                          isLocked || item.quantity >= Math.min(10, item.stockQuantity)
-                            ? "opacity-30 cursor-not-allowed"
-                            : "hover:bg-muted/50"
+                      <div className="flex items-center border border-muted w-24">
+                        <button
+                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                          disabled={isLocked}
+                          className="flex-1 py-1 flex items-center justify-center hover:bg-muted/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                          aria-label="Diminuir quantidade"
+                        >
+                          <Minus className="w-3 h-3" strokeWidth={2} />
+                        </button>
+                        <span className="text-sm w-8 text-center tabular-nums">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          disabled={isLocked || atCap}
+                          className={`flex-1 py-1 flex items-center justify-center transition-colors ${
+                            isLocked || atCap
+                              ? "opacity-30 cursor-not-allowed"
+                              : "hover:bg-muted/50"
+                          }`}
+                          aria-label="Aumentar quantidade"
+                        >
+                          <Plus className="w-3 h-3" strokeWidth={2} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {notice && (
+                      <p
+                        role="status"
+                        className={`text-xs ${
+                          notice.tone === "warning" ? "text-amber-600" : "text-muted-foreground"
                         }`}
-                        aria-label="Aumentar quantidade"
                       >
-                        <Plus className="w-3 h-3" strokeWidth={2} />
+                        {notice.text}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-end justify-between mt-8 sm:mt-0 gap-6">
+                    <div className="flex items-center gap-6">
+                      <button
+                        onClick={() => removeItem(item.id)}
+                        disabled={isLocked}
+                        className="text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-muted-foreground"
+                      >
+                        Excluir
                       </button>
                     </div>
+
+                    <span className="font-semibold text-lg">
+                      {formatPrice(item.price * item.quantity)}
+                    </span>
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between mt-8 sm:mt-0 gap-6">
-                  <div className="flex items-center gap-6">
-                    <button
-                      onClick={() => removeItem(item.id)}
-                      disabled={isLocked}
-                      className="text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-muted-foreground"
-                    >
-                      Excluir
-                    </button>
-                  </div>
-
-                  <span className="font-semibold text-lg">
-                    {formatPrice(item.price * item.quantity)}
-                  </span>
-                </div>
               </div>
-
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="w-full lg:w-[380px] flex-shrink-0">
