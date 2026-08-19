@@ -5,17 +5,9 @@ import { ExpiredSessionNotice } from "@/components/cart/ExpiredSessionNotice";
 import { X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 
 export function CartDrawer() {
   const { items, isCartOpen, setIsCartOpen, removeItem, cartTotal, cartCount, isLocked } = useCart();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null;
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("pt-BR", {

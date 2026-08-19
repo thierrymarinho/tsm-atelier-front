@@ -5,22 +5,28 @@ import { maxUnitsFor, quantityNotice } from "@/lib/cart-limits";
 import { ExpiredSessionNotice } from "@/components/cart/ExpiredSessionNotice";
 import Image from "next/image";
 import Link from "next/link";
-import { Minus, Plus, ShoppingBag } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Loader2, Minus, Plus, ShoppingBag } from "lucide-react";
+import { useEffect } from "react";
 
 export default function CartPage() {
-  const { items, cartTotal, cartCount, removeItem, updateQuantity, isLocked, refreshCart } = useCart();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const { items, cartTotal, cartCount, removeItem, updateQuantity, isLocked, isLoaded, refreshCart } = useCart();
 
   useEffect(() => {
     refreshCart();
   }, [refreshCart]);
 
-  if (!mounted) return null;
+  if (!isLoaded && items.length === 0) {
+    return (
+      <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 pt-24 pb-16">
+        <h1 className="font-serif text-xl sm:text-2xl tracking-widest mb-10 pb-4 border-b border-muted">
+          CARRINHO
+        </h1>
+        <div className="min-h-[40vh] flex items-center justify-center text-muted-foreground">
+          <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("pt-BR", {
