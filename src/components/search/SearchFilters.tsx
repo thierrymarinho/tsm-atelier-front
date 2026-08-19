@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
+import { CATALOG_STALE_TIME_MS } from "@/lib/query";
 import {
   CATEGORIES,
   TARGET_AUDIENCES,
@@ -35,22 +36,22 @@ export function SearchFilters({ filters, onChange, onClearAll }: SearchFiltersPr
 
   const { data: categories } = useQuery({
     queryKey: ["categories", targetAudience ?? "all"],
+    staleTime: CATALOG_STALE_TIME_MS,
     queryFn: async () => {
       const response = await apiClient.get<string[]>("/v1/catalog/products/categories", {
         params: { targetAudience },
       });
       return Array.isArray(response.data) ? response.data : [];
     },
-    staleTime: 5 * 60 * 1000,
   });
 
   const { data: collections } = useQuery({
     queryKey: ["collections", "all"],
+    staleTime: CATALOG_STALE_TIME_MS,
     queryFn: async () => {
       const response = await apiClient.get<CollectionResponseDTO[]>("/v1/catalog/collections");
       return Array.isArray(response.data) ? response.data : [];
     },
-    staleTime: 5 * 60 * 1000,
   });
 
   const categoryOptions = (categories?.length ? categories : [...CATEGORIES]) as Category[];

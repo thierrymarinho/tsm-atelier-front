@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, X } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { CATALOG_STALE_TIME_MS } from "@/lib/query";
 import { CATEGORIES, type Category, type TargetAudience } from "@/lib/types/api";
 import { translateCategory } from "@/lib/utils/translations";
 
@@ -50,13 +51,13 @@ export function SearchAutocomplete({
 
   const { data: categories } = useQuery({
     queryKey: ["categories", targetAudience ?? "all"],
+    staleTime: CATALOG_STALE_TIME_MS,
     queryFn: async () => {
       const response = await apiClient.get<string[]>("/v1/catalog/products/categories", {
         params: { targetAudience },
       });
       return Array.isArray(response.data) ? response.data : [];
     },
-    staleTime: 5 * 60 * 1000,
   });
 
   const suggestions = useMemo<Suggestion[]>(() => {

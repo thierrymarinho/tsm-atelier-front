@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
+import { CATALOG_STALE_TIME_MS } from "@/lib/query";
 import { ProductSummaryDTO, PaginatedResponse } from "@/lib/types/api";
 import { ProductCard } from "@/components/domain/ProductCard";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
@@ -33,6 +34,7 @@ export function NewArrivalsCarousel({ initialProducts }: NewArrivalsCarouselProp
     },
     initialData: activeFilter === DEFAULT_FILTER ? initialProducts : undefined,
     placeholderData: keepPreviousData,
+    staleTime: CATALOG_STALE_TIME_MS,
   });
 
   const scroll = (direction: 'left' | 'right') => {

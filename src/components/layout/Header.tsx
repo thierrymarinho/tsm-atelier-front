@@ -27,6 +27,7 @@ import { useAuthPanel } from "@/lib/context/AuthPanelContext";
 import { useHeaderScroll } from "@/lib/hooks/useHeaderScroll";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { translateCategory } from "@/lib/utils/translations";
+import { CATALOG_STALE_TIME_MS } from "@/lib/query";
 
 type MenuState = "main" | "novidades" | "feminino" | "masculino";
 
@@ -223,6 +224,7 @@ export function Header() {
       });
       return Array.isArray(response.data) && response.data.length > 0 ? response.data[0] : null;
     },
+    staleTime: CATALOG_STALE_TIME_MS,
     enabled: isMenuOpen,
   });
 
@@ -234,6 +236,7 @@ export function Header() {
       });
       return Array.isArray(response.data) ? response.data.slice(0, 5) : [];
     },
+    staleTime: CATALOG_STALE_TIME_MS,
     enabled: activeMenu === "novidades",
   });
 
@@ -245,6 +248,7 @@ export function Header() {
       });
       return Array.isArray(response.data) ? response.data.slice(0, 5) : [];
     },
+    staleTime: CATALOG_STALE_TIME_MS,
     enabled: activeMenu === "novidades",
   });
 
@@ -256,6 +260,7 @@ export function Header() {
       });
       return Array.isArray(response.data) ? response.data.slice(0, 5) : [];
     },
+    staleTime: CATALOG_STALE_TIME_MS,
     enabled: activeMenu === "novidades",
   });
 
@@ -267,6 +272,7 @@ export function Header() {
       });
       return response.data || [];
     },
+    staleTime: CATALOG_STALE_TIME_MS,
     enabled: activeMenu === "feminino",
   });
 
@@ -278,6 +284,7 @@ export function Header() {
       });
       return Array.isArray(response.data) ? response.data.slice(0, 4) : [];
     },
+    staleTime: CATALOG_STALE_TIME_MS,
     enabled: activeMenu === "feminino",
   });
 
@@ -289,6 +296,7 @@ export function Header() {
       });
       return response.data || [];
     },
+    staleTime: CATALOG_STALE_TIME_MS,
     enabled: activeMenu === "masculino",
   });
 
@@ -300,6 +308,7 @@ export function Header() {
       });
       return Array.isArray(response.data) ? response.data.slice(0, 4) : [];
     },
+    staleTime: CATALOG_STALE_TIME_MS,
     enabled: activeMenu === "masculino",
   });
 
