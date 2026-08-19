@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { serverEnv } from '@/lib/env';
 import { CATALOG_UNAVAILABLE_DIGEST } from '@/lib/catalog-unavailable';
 import type {
@@ -140,19 +141,21 @@ export async function getCollectionByPosition(
   return collections[0] ?? null;
 }
 
-export async function getCollectionBySlug(slug: string): Promise<CollectionResponseDTO | null> {
-  return catalogFetch<CollectionResponseDTO>(
-    `/v1/catalog/collections/slug/${encodeURIComponent(slug)}`,
-    { tags: ['collections', `collection:${slug}`] },
-  );
-}
+export const getCollectionBySlug = cache(
+  async (slug: string): Promise<CollectionResponseDTO | null> =>
+    catalogFetch<CollectionResponseDTO>(
+      `/v1/catalog/collections/slug/${encodeURIComponent(slug)}`,
+      { tags: ['collections', `collection:${slug}`] },
+    ),
+);
 
-export async function getProductBySlug(slug: string): Promise<ProductResponseDTO | null> {
-  return catalogFetch<ProductResponseDTO>(
-    `/v1/catalog/products/slug/${encodeURIComponent(slug)}`,
-    { tags: ['products', `product:${slug}`] },
-  );
-}
+export const getProductBySlug = cache(
+  async (slug: string): Promise<ProductResponseDTO | null> =>
+    catalogFetch<ProductResponseDTO>(
+      `/v1/catalog/products/slug/${encodeURIComponent(slug)}`,
+      { tags: ['products', `product:${slug}`] },
+    ),
+);
 
 const SITEMAP_PAGE_SIZE = 100;
 const SITEMAP_MAX_PAGES = 50;
