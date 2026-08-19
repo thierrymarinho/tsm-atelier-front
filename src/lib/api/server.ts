@@ -75,11 +75,29 @@ async function catalogFetch<T>(
   }
 }
 
+// O relançamento existe só para proteger o cache do ISR, que só existe no
+// runtime de produção. No build e em desenvolvimento, degradar.
+const PROTECTS_ISR_CACHE =
+  process.env.NODE_ENV === 'production' && process.env.NEXT_PHASE !== 'phase-production-build';
+
 export async function withCatalogFallback<T>(operation: Promise<T>, fallback: T): Promise<T> {
   try {
     return await operation;
   } catch (error) {
     if (!isCatalogUnavailable(error)) throw error;
+
+    // No build, degradar: um backend hibernando não pode reprovar o deploy, e
+    // não existe cópia anterior para preservar. Em desenvolvimento também, para
+    // trabalhar no front sem o backend de pé continuar possível.
+    //
+    // No runtime de produção, relançar. Engolir aqui faz a renderização "dar certo" com
+    // dados vazios, e o Next grava essa página vazia por cima da boa, por
+    // CATALOG_REVALIDATE_SECONDS inteiros. Lançando, a documentação do ISR
+    // garante o oposto: "the last successfully generated data will continue to
+    // be served from the cache. On the next subsequent request, Next.js will
+    // retry revalidating the data" — a cópia boa continua no ar e a próxima
+    // visita já tenta de novo, em vez de esperar a janela fechar.
+    if (PROTECTS_ISR_CACHE) throw error;
 
     // `warn`, e não `error`: a condição está tratada — existe fallback e a
     // página renderiza. Nível de erro fica para o que ninguém pegou. Em

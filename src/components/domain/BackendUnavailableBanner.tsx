@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQueryClient, type Query } from "@tanstack/react-query";
 import { Clock, Loader2 } from "lucide-react";
 import { isBackendUnavailable } from "@/lib/api/client";
@@ -25,6 +26,7 @@ const MAX_ATTEMPTS = 4;
  */
 export function BackendUnavailableBanner() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [isDown, setIsDown] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -64,10 +66,17 @@ export function BackendUnavailableBanner() {
       // erro é o certo: se o backend continuar fora, a próxima abertura de
       // menu falha de novo e o aviso volta.
       queryClient.resetQueries({ type: "inactive", predicate: failed });
+
+      // Sem isto o dado de servidor nunca volta. A home, por exemplo, busca o
+      // hero e as coleções em componentes de servidor: quando o backend estava
+      // fora, elas renderizaram vazias, e refazer query de cliente não as
+      // recompõe. `router.refresh()` refaz a renderização no servidor, e é o
+      // que faz o Next tentar revalidar a página de novo.
+      router.refresh();
     } finally {
       setIsRetrying(false);
     }
-  }, [queryClient]);
+  }, [queryClient, router]);
 
   useEffect(() => {
     if (!isDown || attempt >= MAX_ATTEMPTS) return;

@@ -33,19 +33,38 @@ function readCsrfToken(): string | null {
 
 let csrfPriming: Promise<void> | null = null;
 
+// Uma falha aqui não pode ser engolida. Sem token, a mutação seguinte sai sem
+// o header e o Spring responde 403 — que o AuthPanel classifica como erro de
+// permissão, então quem tentou entrar durante o cold start lia "sem permissão"
+// em vez do aviso de hibernação. Relançar faz o `isBackendUnavailable` do
+// chamador reconhecer a causa real.
+//
+// Só o que tem cara de backend ausente relança. Um 4xx aqui segue como antes,
+// sem header: pode ser configuração de CSRF diferente, e transformar isso em
+// erro duro quebraria um caminho que hoje funciona.
+async function primeCsrfToken(): Promise<void> {
+  const res = await fetch(`${BASE_URL}${CSRF_PRIMING_PATH}`, {
+    method: "GET",
+    credentials: "same-origin",
+    signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+  });
+
+  if (res.status >= 500 || isHtmlContentType(res.headers.get("content-type"))) {
+    throw new ApiError("Backend unavailable while priming CSRF", {
+      status: res.status,
+      data: null,
+      headers: res.headers,
+    });
+  }
+}
+
 async function ensureCsrfToken(): Promise<string | null> {
   const existing = readCsrfToken();
   if (existing) return existing;
 
-  csrfPriming ??= fetch(`${BASE_URL}${CSRF_PRIMING_PATH}`, {
-    method: "GET",
-    credentials: "same-origin",
-  })
-    .then(() => undefined)
-    .catch(() => undefined)
-    .finally(() => {
-      csrfPriming = null;
-    });
+  csrfPriming ??= primeCsrfToken().finally(() => {
+    csrfPriming = null;
+  });
 
   await csrfPriming;
   return readCsrfToken();
