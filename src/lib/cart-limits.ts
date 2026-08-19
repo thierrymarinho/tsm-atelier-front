@@ -9,8 +9,25 @@ export function maxUnitsFor(stockQuantity: number): number {
   return Math.min(MAX_UNITS_PER_ITEM, stockQuantity);
 }
 
-export function capNotice(stockQuantity: number): CapNotice | null {
+export function quantityNotice(
+  quantity: number,
+  stockQuantity: number,
+): CapNotice | null {
   if (stockQuantity <= 0) return null;
+
+  const maxUnits = maxUnitsFor(stockQuantity);
+
+  if (quantity > maxUnits) {
+    return {
+      text:
+        stockQuantity === 1
+          ? "Resta apenas 1 unidade. Ajuste a quantidade para continuar."
+          : `Restam apenas ${stockQuantity} unidades. Ajuste a quantidade para continuar.`,
+      tone: "warning",
+    };
+  }
+
+  if (quantity < maxUnits) return null;
 
   if (stockQuantity >= MAX_UNITS_PER_ITEM) {
     return {

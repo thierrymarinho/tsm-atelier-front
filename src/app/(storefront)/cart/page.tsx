@@ -1,7 +1,7 @@
 "use client";
 
 import { useCart } from "@/lib/context/CartContext";
-import { capNotice, maxUnitsFor } from "@/lib/cart-limits";
+import { maxUnitsFor, quantityNotice } from "@/lib/cart-limits";
 import { ExpiredSessionNotice } from "@/components/cart/ExpiredSessionNotice";
 import Image from "next/image";
 import Link from "next/link";
@@ -9,12 +9,16 @@ import { Minus, Plus, ShoppingBag } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export default function CartPage() {
-  const { items, cartTotal, cartCount, removeItem, updateQuantity, isLocked } = useCart();
+  const { items, cartTotal, cartCount, removeItem, updateQuantity, isLocked, refreshCart } = useCart();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    refreshCart();
+  }, [refreshCart]);
 
   if (!mounted) return null;
 
@@ -58,7 +62,8 @@ export default function CartPage() {
           {items.map((item) => {
             const maxUnits = maxUnitsFor(item.stockQuantity);
             const atCap = item.quantity >= maxUnits;
-            const notice = atCap ? capNotice(item.stockQuantity) : null;
+            const overCap = item.quantity > maxUnits;
+            const notice = quantityNotice(item.quantity, item.stockQuantity);
 
             return (
               <div key={item.id} className="flex flex-col sm:flex-row gap-6 sm:gap-8 pb-10 border-b border-muted">
@@ -98,7 +103,9 @@ export default function CartPage() {
                       </span>
                       <div className="flex items-center border border-muted w-24">
                         <button
-                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                          onClick={() =>
+                            updateQuantity(item.id, overCap ? maxUnits : item.quantity - 1)
+                          }
                           disabled={isLocked}
                           className="flex-1 py-1 flex items-center justify-center hover:bg-muted/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                           aria-label="Diminuir quantidade"
@@ -124,14 +131,24 @@ export default function CartPage() {
                     </div>
 
                     {notice && (
-                      <p
-                        role="status"
-                        className={`text-xs ${
-                          notice.tone === "warning" ? "text-amber-600" : "text-muted-foreground"
-                        }`}
-                      >
-                        {notice.text}
-                      </p>
+                      <div role="status" className="flex flex-wrap items-center gap-3">
+                        <p
+                          className={`text-xs ${
+                            notice.tone === "warning" ? "text-amber-600" : "text-muted-foreground"
+                          }`}
+                        >
+                          {notice.text}
+                        </p>
+                        {overCap && maxUnits > 0 && (
+                          <button
+                            onClick={() => updateQuantity(item.id, maxUnits)}
+                            disabled={isLocked}
+                            className="text-xs uppercase tracking-widest underline underline-offset-4 hover:opacity-70 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            Ajustar para {maxUnits}
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
 
