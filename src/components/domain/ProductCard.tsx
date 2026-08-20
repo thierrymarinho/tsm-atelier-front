@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ProductSummaryDTO } from "@/lib/types/api";
@@ -9,10 +12,15 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, isNewBadge }: ProductCardProps) {
+  const [showHover, setShowHover] = useState(false);
+  const armHover = () => setShowHover(true);
+
   return (
     <Link
       href={`/product/${product.slug}`}
       className="group flex flex-col cursor-pointer"
+      onMouseEnter={product.hoverImageUrl ? armHover : undefined}
+      onFocus={product.hoverImageUrl ? armHover : undefined}
     >
       <div className="relative w-full aspect-[3/4] bg-muted overflow-hidden mb-4">
         <Image
@@ -21,11 +29,11 @@ export function ProductCard({ product, isNewBadge }: ProductCardProps) {
           fill
           sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
           className={`object-cover object-center transition-opacity duration-500 ease-in-out ${
-            product.hoverImageUrl ? "group-hover:opacity-0" : ""
+            product.hoverImageUrl && showHover ? "group-hover:opacity-0" : ""
           }`}
         />
 
-        {product.hoverImageUrl && (
+        {product.hoverImageUrl && showHover && (
           <Image
             src={product.hoverImageUrl}
             alt={`${product.name} - Alternate View`}

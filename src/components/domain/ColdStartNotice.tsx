@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Clock } from "lucide-react";
+import { revalidateStorefrontPath } from "@/lib/api/revalidate";
 
 const RETRY_INTERVAL_SECONDS = 10;
 
@@ -10,8 +11,18 @@ const RETRY_INTERVAL_SECONDS = 10;
 // está fora por outro motivo, e insistir para sempre só somaria carga a ele.
 const MAX_ATTEMPTS = 6;
 
-export function ColdStartNotice() {
+export function ColdStartNotice({ reset }: { reset?: () => void }) {
   const router = useRouter();
+  const pathname = usePathname();
+
+  const retry = useCallback(() => {
+    void revalidateStorefrontPath(pathname ?? "/").finally(() => {
+      startTransition(() => {
+        router.refresh();
+        reset?.();
+      });
+    });
+  }, [router, reset, pathname]);
   const [attempt, setAttempt] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(RETRY_INTERVAL_SECONDS);
 
@@ -38,14 +49,14 @@ export function ColdStartNotice() {
       remainingRef.current = RETRY_INTERVAL_SECONDS;
       setSecondsLeft(RETRY_INTERVAL_SECONDS);
       setAttempt((current) => current + 1);
-      router.refresh();
+      retry();
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [exhausted, router]);
+  }, [exhausted, retry]);
 
   return (
-    <div className="flex-1 w-full min-h-[70vh] flex flex-col items-center justify-center px-4 text-center">
+    <div className="flex-1 w-full min-h-[70vh] mt-[var(--header-height)] flex flex-col items-center justify-center px-4 text-center">
       <div className="max-w-xl mx-auto space-y-8">
         <div className="flex justify-center text-muted-foreground/30 mb-8">
           <Clock className="w-20 h-20" strokeWidth={1} />
@@ -73,7 +84,7 @@ export function ColdStartNotice() {
               remainingRef.current = RETRY_INTERVAL_SECONDS;
               setAttempt(0);
               setSecondsLeft(RETRY_INTERVAL_SECONDS);
-              router.refresh();
+              retry();
             }}
             className="inline-flex items-center justify-center px-8 py-4 bg-foreground text-background text-xs font-semibold tracking-[0.2em] uppercase hover:bg-foreground/90 transition-colors"
           >

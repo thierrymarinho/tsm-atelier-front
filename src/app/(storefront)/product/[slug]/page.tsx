@@ -1,12 +1,17 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProductBySlug, isCatalogUnavailable } from "@/lib/api/server";
-import { ProductDetails } from "@/components/domain/ProductDetails";
 import { ColdStartNotice } from "@/components/domain/ColdStartNotice";
-import type { ProductResponseDTO } from "@/lib/types/api";
+import { ProductDetails } from "@/components/domain/ProductDetails";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
+}
+
+export const revalidate = 300;
+
+export function generateStaticParams() {
+  return [];
 }
 
 // O aviso de cold start responde 200, então sem isto um crawler que chegasse
@@ -28,7 +33,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function ProductPage({ params }: PageProps) {
   const { slug } = await params;
 
-  let product: ProductResponseDTO | null;
+  let product;
   try {
     product = await getProductBySlug(slug);
   } catch (error) {

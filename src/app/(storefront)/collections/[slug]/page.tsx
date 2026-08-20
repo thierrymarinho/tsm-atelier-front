@@ -10,6 +10,12 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
+export const revalidate = 300;
+
+export function generateStaticParams() {
+  return [];
+}
+
 // Mesmo motivo da página de produto: manter o aviso de cold start fora do índice.
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
@@ -42,7 +48,7 @@ export default async function CollectionPage({ params }: PageProps) {
     targetAudience = "MEN";
     isNovidades = true;
   } else {
-    let collectionData: Awaited<ReturnType<typeof getCollectionBySlug>>;
+    let collectionData;
     try {
       collectionData = await getCollectionBySlug(slug);
     } catch (error) {

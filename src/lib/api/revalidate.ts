@@ -1,6 +1,6 @@
 'use server';
 
-import { updateTag } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 
 export async function revalidateCollections(): Promise<void> {
   updateTag('collections');
@@ -8,4 +8,10 @@ export async function revalidateCollections(): Promise<void> {
 
 export async function revalidateProducts(): Promise<void> {
   updateTag('products');
+}
+
+export async function revalidateStorefrontPath(path: string): Promise<void> {
+  if (/^\/(product|collections|catalog|sale)(\/|$)/.test(path)) {
+    revalidatePath(path);
+  }
 }
