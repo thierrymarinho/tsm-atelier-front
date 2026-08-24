@@ -1,7 +1,10 @@
-import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getProductBySlug, isCatalogUnavailable } from "@/lib/api/server";
-import { ColdStartNotice } from "@/components/domain/ColdStartNotice";
+import {
+  getAllProductSlugs,
+  getProductBySlug,
+  isCatalogReachable,
+  withCatalogFallback,
+} from "@/lib/api/server";
 import { ProductDetails } from "@/components/domain/ProductDetails";
 
 interface PageProps {
@@ -10,36 +13,24 @@ interface PageProps {
 
 export const revalidate = 300;
 
-export function generateStaticParams() {
-  return [];
-}
-
-// O aviso de cold start responde 200, então sem isto um crawler que chegasse
-// com o backend dormindo poderia indexar o aviso como sendo a página do
-// produto. Uma tag <meta> renderizada pelo próprio aviso não serviria: a essa
-// altura o <head> já foi despachado, e robots no body é ignorado.
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { slug } = await params;
-
-  try {
-    await getProductBySlug(slug);
-    return {};
-  } catch (error) {
-    if (isCatalogUnavailable(error)) return { robots: { index: false } };
-    throw error;
-  }
+// Gerar todas as páginas no build faz cada produto nascer com uma cópia no
+// Full Route Cache — e é a cópia que segura um deep link durante a hibernação
+// do backend. A sonda cobre o build com backend dormindo: sem ela, a lista de
+// slugs sairia do Data Cache persistido, o prerender de cada página falharia
+// e o deploy seria reprovado. Backend fora → geração sob demanda, como antes.
+export async function generateStaticParams() {
+  if (!(await isCatalogReachable())) return [];
+  const slugs = await withCatalogFallback(getAllProductSlugs(), []);
+  return slugs.map((slug) => ({ slug }));
 }
 
 export default async function ProductPage({ params }: PageProps) {
   const { slug } = await params;
 
-  let product;
-  try {
-    product = await getProductBySlug(slug);
-  } catch (error) {
-    if (isCatalogUnavailable(error)) return <ColdStartNotice />;
-    throw error;
-  }
+  // Sem try/catch de propósito: com o backend fora, renderizar qualquer coisa
+  // aqui gravaria essa coisa no lugar da página real por toda a janela de
+  // revalidação. Lançar descarta a tentativa e preserva a última cópia boa.
+  const product = await getProductBySlug(slug);
 
   if (!product) {
     notFound();

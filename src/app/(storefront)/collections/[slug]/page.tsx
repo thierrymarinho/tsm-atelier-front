@@ -1,9 +1,12 @@
-import type { Metadata } from "next";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { CatalogGrid, CatalogGridSkeleton } from "@/components/domain/CatalogGrid";
-import { getCollectionBySlug, isCatalogUnavailable } from "@/lib/api/server";
-import { ColdStartNotice } from "@/components/domain/ColdStartNotice";
+import {
+  getAllCollections,
+  getCollectionBySlug,
+  isCatalogReachable,
+  withCatalogFallback,
+} from "@/lib/api/server";
 import { TargetAudience } from "@/lib/types/api";
 
 interface PageProps {
@@ -12,23 +15,22 @@ interface PageProps {
 
 export const revalidate = 300;
 
-export function generateStaticParams() {
-  return [];
-}
+// Mesmo racional da página de produto: toda coleção nasce com cópia no build,
+// e a sonda faz um backend dormindo degradar para geração sob demanda em vez
+// de reprovar o deploy. As duas rotas de novidades não existem na API — a
+// própria página não a consulta, e o grid delas degrada sozinho no build —
+// então nascem sempre, mesmo com o backend fora.
+export async function generateStaticParams() {
+  const virtual = [{ slug: "novidades-mulheres" }, { slug: "novidades-homens" }];
+  if (!(await isCatalogReachable())) return virtual;
 
-// Mesmo motivo da página de produto: manter o aviso de cold start fora do índice.
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { slug } = await params;
-
-  if (slug === "novidades-mulheres" || slug === "novidades-homens") return {};
-
-  try {
-    await getCollectionBySlug(slug);
-    return {};
-  } catch (error) {
-    if (isCatalogUnavailable(error)) return { robots: { index: false } };
-    throw error;
-  }
+  const collections = await withCatalogFallback(getAllCollections(), []);
+  return [
+    ...virtual,
+    ...collections
+      .filter((collection) => collection.active)
+      .map((collection) => ({ slug: collection.slug })),
+  ];
 }
 
 export default async function CollectionPage({ params }: PageProps) {
@@ -48,13 +50,9 @@ export default async function CollectionPage({ params }: PageProps) {
     targetAudience = "MEN";
     isNovidades = true;
   } else {
-    let collectionData;
-    try {
-      collectionData = await getCollectionBySlug(slug);
-    } catch (error) {
-      if (isCatalogUnavailable(error)) return <ColdStartNotice />;
-      throw error;
-    }
+    // Sem try/catch: backend fora tem que lançar para a revalidação falhada
+    // ser descartada e a cópia boa continuar no ar (ver CatalogGrid).
+    const collectionData = await getCollectionBySlug(slug);
 
     if (!collectionData || !collectionData.active) {
       notFound();

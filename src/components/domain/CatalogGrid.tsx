@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
-import { getProducts, isCatalogUnavailable } from "@/lib/api/server";
-import { ProductSummaryDTO, TargetAudience } from "@/lib/types/api";
+import { getProducts, withCatalogFallback } from "@/lib/api/server";
+import { TargetAudience } from "@/lib/types/api";
 import { ProductCard } from "./ProductCard";
 import { ColdStartNotice } from "./ColdStartNotice";
 
@@ -32,13 +32,19 @@ export async function CatalogGrid({
   size = 20,
   emptyMessage = "Nenhum produto ainda foi adicionado para essa coleção.",
 }: CatalogGridProps) {
-  let products: ProductSummaryDTO[];
-  try {
-    products = await getProducts({ targetAudience, category, collectionId, onSale, sort, size });
-  } catch (error) {
-    if (isCatalogUnavailable(error)) return <ColdStartNotice />;
-    throw error;
-  }
+  // No runtime de produção o withCatalogFallback relança, e é isso que
+  // protege o cache: renderizar o aviso contaria como página válida e seria
+  // gravado por cima da cópia boa pela janela inteira; lançando, a revalidação
+  // falhada é descartada e a última cópia segue no ar (rotas dinâmicas caem no
+  // error.tsx, que mostra o aviso com retry). O null só acontece no build e em
+  // dev, onde não existe cópia para proteger — aí o aviso vira o conteúdo
+  // inicial e o retry dele o troca pela página real quando o backend acordar.
+  const products = await withCatalogFallback(
+    getProducts({ targetAudience, category, collectionId, onSale, sort, size }),
+    null,
+  );
+
+  if (products === null) return <ColdStartNotice />;
 
   if (products.length === 0) {
     return (
