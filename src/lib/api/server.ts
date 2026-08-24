@@ -113,6 +113,23 @@ export async function withCatalogFallback<T>(operation: Promise<T>, fallback: T)
   }
 }
 
+// Sonda para o generateStaticParams, sem cache de propósito: o Data Cache
+// persiste entre builds e entregaria a lista de slugs mesmo com o backend
+// dormindo — e aí o prerender das páginas, que busca cada recurso de verdade,
+// falharia e reprovaria o deploy. A sonda honesta faz backend fora virar
+// "nada é pré-gerado", e as rotas voltam a nascer sob demanda.
+export async function isCatalogReachable(): Promise<boolean> {
+  try {
+    const res = await fetch(`${serverEnv.API_URL}/api/v1/catalog/collections`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(CATALOG_TIMEOUT_MS),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 function buildQuery(params: Record<string, string | number | boolean | undefined>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
